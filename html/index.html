@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AGV Control Center — IoT Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&family=Fira+Code:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/index.css" />
+  </head>
+  <body>
+    <!-- NOISE OVERLAY -->
+    <div class="noise-overlay"></div>
+
+    <!-- NAVBAR -->
+    <nav class="navbar" id="navbar">
+      <div class="nav-logo">
+        <span class="logo-bracket">[</span>
+        <span class="logo-text">AGV</span>
+        <span class="logo-sub">_CTRL</span>
+        <span class="logo-bracket">]</span>
+      </div>
+      <ul class="nav-links">
+        <li class="mobile-logo-container">
+          <div class="nav-logo mobile-logo">
+            <span class="logo-bracket">[</span>
+            <span class="logo-text">AGV</span>
+            <span class="logo-sub">_CTRL</span>
+            <span class="logo-bracket">]</span>
+          </div>
+        </li>
+
+        <li><a href="#features">Phân hệ</a></li>
+        <li><a href="#techstack">Công nghệ</a></li>
+        <li><a href="#specs">Thông số</a></li>
+        <li><a href="#demo">Live Demo</a></li>
+
+        <li class="nav-auth-separator"></li>
+
+        <li><a href="#login">Đăng nhập</a></li>
+        <li><a href="#register" class="nav-cta">Đăng ký</a></li>
+      </ul>
+      <div class="hamburger" id="hamburger">
+        <span></span><span></span><span></span>
+      </div>
+    </nav>
+
+    <!-- ══════════════ HERO ══════════════ -->
+    <section class="hero" id="hero">
+      <canvas id="heroCanvas"></canvas>
+
+      <div class="hero-content">
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          <span>SYSTEM ONLINE · ROS 2 HUMBLE</span>
+        </div>
+
+        <h1 class="hero-title">
+          <span class="line-1">HỆ THỐNG</span>
+          <span class="line-2 accent-text">XE TỰ HÀNH</span>
+          <span class="line-3">AGV &amp; IoT</span>
+        </h1>
+
+        <p class="hero-subtitle typewriter" id="typewriter"></p>
+
+        <div class="hero-coords">
+          <div class="coord-item">
+            <span class="coord-label">POS</span>
+            <span class="coord-val" id="posX">X: 07</span>
+            <span class="coord-val" id="posY">Y: 03</span>
+            <span class="coord-val" id="posTheta">θ: 45°</span>
+          </div>
+          <div class="coord-item">
+            <span class="coord-label">VEL</span>
+            <span class="coord-val" id="velV">V: 0.24 m/s</span>
+            <span class="coord-val" id="velW">ω: 0.12 rad/s</span>
+          </div>
+          <div class="coord-item status-moving">
+            <span class="status-dot"></span>
+            <span class="coord-label">STATUS</span>
+            <span class="coord-val">MOVING</span>
+          </div>
+        </div>
+
+        <div class="hero-cta">
+          <a href="#features" class="btn btn-primary">
+            <span class="btn-icon">◈</span> Khám phá hệ thống
+          </a>
+          <a href="#demo" class="btn btn-outline">
+            <span class="btn-icon">▶</span> Xem Demo
+          </a>
+        </div>
+      </div>
+
+      <!-- HERO VISUAL PANEL — AGV Mini Map HUD -->
+      <div class="hero-visual" id="heroVisual">
+        <div class="hv-bracket hv-tl"></div>
+        <div class="hv-bracket hv-tr"></div>
+        <div class="hv-bracket hv-bl"></div>
+        <div class="hv-bracket hv-br"></div>
+
+        <div class="hv-header">
+          <span class="hv-title">◈ AGV GRID MAP</span>
+          <span class="hv-live"><span class="hv-dot"></span>LIVE FEED</span>
+        </div>
+
+        <div class="hv-map-wrap">
+          <canvas id="heroMiniMap"></canvas>
+          <div class="hv-scanline"></div>
+          <div class="hv-coord-x">X — AXIS (0 → 10)</div>
+          <div class="hv-coord-y">Y — AXIS</div>
+        </div>
+
+        <div class="hv-telemetry">
+          <div class="hv-tele-item">
+            <span class="hv-tele-label">POSITION</span>
+            <span class="hv-tele-val" id="hvPos">X:00 Y:00</span>
+          </div>
+          <div class="hv-tele-item">
+            <span class="hv-tele-label">VELOCITY</span>
+            <span class="hv-tele-val" id="hvVel">0.00 m/s</span>
+          </div>
+          <div class="hv-tele-item">
+            <span class="hv-tele-label">HEADING</span>
+            <span class="hv-tele-val" id="hvTheta">000°</span>
+          </div>
+          <div class="hv-tele-item">
+            <span class="hv-tele-label">PATH LEN</span>
+            <span class="hv-tele-val" id="hvPath">—</span>
+          </div>
+        </div>
+
+        <div class="hv-footer">
+          <span class="hv-footer-tag">ROS 2 · BFS · MQTT</span>
+          <span class="hv-footer-time" id="hvTime">——:——:——</span>
+        </div>
+      </div>
+
+      <div class="hero-grid-visual" id="heroGrid"></div>
+
+      <div class="scroll-indicator">
+        <span class="scroll-text">SCROLL</span>
+        <div class="scroll-line"></div>
+      </div>
+    </section>
+
+    <!-- ══════════════ STATS BAR ══════════════ -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <span class="stat-num" data-target="10">0</span><span>×</span>
+        <span class="stat-num" data-target="15">0</span>
+        <span class="stat-label">Grid Matrix</span>
+      </div>
+      <div class="stat-divider">|</div>
+      <div class="stat-item">
+        <span class="stat-num" data-target="2">0</span><span>m</span
+        ><span> × </span> <span class="stat-num" data-target="3">0</span
+        ><span>m</span>
+        <span class="stat-label">Arena Size</span>
+      </div>
+      <div class="stat-divider">|</div>
+      <div class="stat-item">
+        <span class="stat-num" data-target="100">0</span><span>%</span>
+        <span class="stat-label">Real-time Sync</span>
+      </div>
+      <div class="stat-divider">|</div>
+      <div class="stat-item">
+        <span class="stat-num" data-target="3">0</span>
+        <span class="stat-label">Control Subsystems</span>
+      </div>
+    </div>
+
+    <!-- ══════════════ FEATURES ══════════════ -->
+    <section class="features" id="features">
+      <div class="section-header reveal">
+        <span class="section-tag">// PHÂN HỆ CHÍNH</span>
+        <h2>Web Dashboard <span class="accent-text">Architecture</span></h2>
+        <p>Ba phân hệ độc lập, hoạt động đồng bộ theo thời gian thực</p>
+      </div>
+
+      <div class="features-grid">
+        <!-- CARD 1 -->
+        <div class="feature-card reveal" data-delay="0">
+          <div class="card-number">01</div>
+          <div class="card-icon-wrap">
+            <svg class="card-icon" viewBox="0 0 64 64" fill="none">
+              <rect
+                x="4"
+                y="4"
+                width="56"
+                height="56"
+                rx="4"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <line
+                x1="4"
+                y1="23"
+                x2="60"
+                y2="23"
+                stroke="currentColor"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
+              />
+              <line
+                x1="4"
+                y1="42"
+                x2="60"
+                y2="42"
+                stroke="currentColor"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
+              />
+              <line
+                x1="23"
+                y1="4"
+                x2="23"
+                y2="60"
+                stroke="currentColor"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
+              />
+              <line
+                x1="42"
+                y1="4"
+                x2="42"
+                y2="60"
+                stroke="currentColor"
+                stroke-width="0.8"
+                stroke-dasharray="3 3"
+              />
+              <polyline
+                points="10,50 18,38 26,42 35,25 44,28 54,14"
+                stroke="#00e5ff"
+                stroke-width="2"
+                stroke-linejoin="round"
+              />
+              <circle cx="35" cy="25" r="4" fill="#00e5ff" opacity="0.9" />
+              <circle
+                cx="35"
+                cy="25"
+                r="8"
+                fill="none"
+                stroke="#00e5ff"
+                stroke-width="1"
+                opacity="0.4"
+                class="pulse-ring"
+              />
+            </svg>
+          </div>
+          <h3 class="card-title">Live Map &amp; Tracking</h3>
+          <p class="card-desc">
+            Bản đồ lưới 2D thời gian thực hiển thị vị trí xe
+            <code>(x, y, θ)</code>, quỹ đạo BFS màu xanh và trạng thái vật cản
+            theo từng millisecond.
+          </p>
+          <ul class="card-features">
+            <li><span class="check">◆</span> Grid 10×15 — Tỷ lệ vật lý 1:1</li>
+            <li><span class="check">◆</span> Icon AGV xoay theo hướng θ</li>
+            <li><span class="check">◆</span> Path BFS render động real-time</li>
+            <li><span class="check">◆</span> Obstacle highlight tức thì</li>
+          </ul>
+          <div class="card-glow"></div>
+        </div>
+
+        <!-- CARD 2 -->
+        <div class="feature-card reveal card-center" data-delay="150">
+          <div class="card-number">02</div>
+          <div class="card-icon-wrap">
+            <svg class="card-icon" viewBox="0 0 64 64" fill="none">
+              <rect
+                x="6"
+                y="14"
+                width="52"
+                height="36"
+                rx="3"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <rect
+                x="12"
+                y="20"
+                width="16"
+                height="6"
+                rx="1"
+                fill="#00e5ff"
+                opacity="0.15"
+                stroke="#00e5ff"
+                stroke-width="1"
+              />
+              <rect
+                x="12"
+                y="30"
+                width="24"
+                height="6"
+                rx="1"
+                fill="#00e5ff"
+                opacity="0.3"
+                stroke="#00e5ff"
+                stroke-width="1"
+              />
+              <rect
+                x="12"
+                y="40"
+                width="10"
+                height="4"
+                rx="1"
+                fill="#39ff14"
+                opacity="0.4"
+                stroke="#39ff14"
+                stroke-width="1"
+              />
+              <line
+                x1="36"
+                y1="20"
+                x2="52"
+                y2="20"
+                stroke="currentColor"
+                stroke-width="0.8"
+              />
+              <line
+                x1="36"
+                y1="26"
+                x2="48"
+                y2="26"
+                stroke="currentColor"
+                stroke-width="0.8"
+              />
+              <circle
+                cx="46"
+                cy="40"
+                r="6"
+                stroke="#ff6b35"
+                stroke-width="1.5"
+              />
+              <line
+                x1="46"
+                y1="36"
+                x2="46"
+                y2="41"
+                stroke="#ff6b35"
+                stroke-width="2"
+              />
+              <circle cx="46" cy="43" r="1" fill="#ff6b35" />
+            </svg>
+          </div>
+          <div class="card-badge">CORE</div>
+          <h3 class="card-title">Telemetry Panel</h3>
+          <p class="card-desc">
+            Bảng telemetry hiển thị toàn bộ thông số vận hành của AGV — vận tốc,
+            góc quay, trạng thái hoạt động và mức pin LiPo theo thời gian thực.
+          </p>
+          <ul class="card-features">
+            <li><span class="check">◆</span> Vận tốc tịnh tiến V (m/s)</li>
+            <li><span class="check">◆</span> Vận tốc góc ω (rad/s)</li>
+            <li>
+              <span class="check">◆</span> Trạng thái: Idle / Moving / Blocked
+            </li>
+            <li><span class="check">◆</span> Pin LiPo % (tùy chọn nâng cao)</li>
+          </ul>
+          <div class="card-glow card-glow-center"></div>
+        </div>
+
+        <!-- CARD 3 -->
+        <div class="feature-card reveal" data-delay="300">
+          <div class="card-number">03</div>
+          <div class="card-icon-wrap">
+            <svg class="card-icon" viewBox="0 0 64 64" fill="none">
+              <rect
+                x="6"
+                y="8"
+                width="36"
+                height="28"
+                rx="4"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <rect
+                x="22"
+                y="36"
+                width="20"
+                height="20"
+                rx="4"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <line
+                x1="12"
+                y1="18"
+                x2="30"
+                y2="18"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <line
+                x1="12"
+                y1="24"
+                x2="26"
+                y2="24"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+              <circle
+                cx="50"
+                cy="20"
+                r="10"
+                stroke="#00e5ff"
+                stroke-width="1.5"
+              />
+              <line
+                x1="47"
+                y1="17"
+                x2="47"
+                y2="23"
+                stroke="#00e5ff"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+              <line
+                x1="47"
+                y1="17"
+                x2="53"
+                y2="17"
+                stroke="#00e5ff"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+              <line
+                x1="47"
+                y1="23"
+                x2="53"
+                y2="23"
+                stroke="#00e5ff"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+              <line
+                x1="53"
+                y1="17"
+                x2="53"
+                y2="20"
+                stroke="#00e5ff"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+              <circle cx="53" cy="22" r="1.5" fill="#00e5ff" />
+              <circle
+                cx="30"
+                cy="50"
+                r="6"
+                fill="#39ff14"
+                opacity="0.2"
+                stroke="#39ff14"
+                stroke-width="1"
+              />
+              <line
+                x1="28"
+                y1="50"
+                x2="32"
+                y2="50"
+                stroke="#39ff14"
+                stroke-width="1.5"
+              />
+              <line
+                x1="30"
+                y1="48"
+                x2="30"
+                y2="52"
+                stroke="#39ff14"
+                stroke-width="1.5"
+              />
+            </svg>
+          </div>
+          <h3 class="card-title">AI Command Center</h3>
+          <p class="card-desc">
+            Trợ lý ảo hiểu ngôn ngữ tự nhiên — phân tích lệnh, dịch sang tọa độ
+            lưới và bắn gói tin MQTT/WebSocket đến Raspberry Pi kích hoạt BFS.
+          </p>
+          <ul class="card-features">
+            <li>
+              <span class="check">◆</span> NLP — Phân tích câu lệnh tiếng Việt
+            </li>
+            <li>
+              <span class="check">◆</span> Dịch sang tọa độ (x_goal, y_goal)
+            </li>
+            <li><span class="check">◆</span> Phát lệnh qua MQTT / WebSocket</li>
+            <li><span class="check">◆</span> Phản hồi trạng thái tức thì</li>
+          </ul>
+          <div class="card-glow"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ DIGITAL TWIN DEMO ══════════════ -->
+    <section class="demo-section" id="demo">
+      <div class="demo-container">
+        <div class="demo-info reveal">
+          <span class="section-tag">// DIGITAL TWIN</span>
+          <h2>Bản sao số <span class="accent-text">Real-time</span></h2>
+          <p>
+            Toàn bộ không gian vật lý 2m × 3m được đồng bộ lên nền tảng web. Mỗi
+            thay đổi vị trí, góc quay hay phát hiện vật cản đều được phản chiếu
+            tức thì trên dashboard.
+          </p>
+          <div class="demo-stats">
+            <div class="demo-stat">
+              <span class="ds-val">~10ms</span>
+              <span class="ds-label">Latency MQTT</span>
+            </div>
+            <div class="demo-stat">
+              <span class="ds-val">BFS</span>
+              <span class="ds-label">Pathfinding Algo</span>
+            </div>
+            <div class="demo-stat">
+              <span class="ds-val">150</span>
+              <span class="ds-label">Grid Cells</span>
+            </div>
+          </div>
+          <div class="demo-messages" id="demoMessages">
+            <div class="msg msg-user">Hãy đi đến Gian hàng A</div>
+            <div class="msg msg-bot">
+              <span class="bot-tag">AGV_AI</span> Đã nhận lệnh, đang tính toán
+              đường đi BFS...
+            </div>
+            <div class="msg msg-bot">
+              <span class="bot-tag">AGV_AI</span> Tìm thấy đường đi — 12 bước.
+              Đang di chuyển...
+            </div>
+            <div class="msg msg-system">◈ STATUS: MOVING → (x:4, y:9)</div>
+            <div class="msg msg-bot">
+              <span class="bot-tag">AGV_AI</span> Đã đến nơi an toàn! ✓
+            </div>
+          </div>
+        </div>
+        <div class="demo-visual reveal" data-delay="200">
+          <div class="mini-grid-wrap">
+            <div class="grid-label-x">← X (15 cols) →</div>
+            <div class="grid-label-y">Y (10 rows)</div>
+            <canvas id="miniGrid" width="450" height="300"></canvas>
+            <div class="grid-legend">
+              <span class="leg-item"
+                ><span class="leg-dot leg-agv"></span> AGV</span
+              >
+              <span class="leg-item"
+                ><span class="leg-dot leg-path"></span> BFS Path</span
+              >
+              <span class="leg-item"
+                ><span class="leg-dot leg-goal"></span> Goal</span
+              >
+              <span class="leg-item"
+                ><span class="leg-dot leg-obs"></span> Obstacle</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════════ TECH STACK ══════════════ -->
+    <section class="techstack" id="techstack">
+      <div class="section-header reveal">
+        <span class="section-tag">// CÔNG NGHỆ SỬ DỤNG</span>
+        <h2>Tech <span class="accent-text">Stack</span></h2>
+        <p>Kiến trúc phần mềm & phần cứng toàn diện</p>
+      </div>
+
+      <div class="tech-layers">
+        <div class="tech-layer reveal" data-delay="0">
+          <div class="layer-label">HARDWARE</div>
+          <div class="tech-items">
+            <div class="tech-item">
+              <div class="tech-icon hardware">RPi</div>
+              <span>Raspberry Pi 4</span>
+              <span class="tech-role">Node trung tâm</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon hardware">STM</div>
+              <span>STM32</span>
+              <span class="tech-role">Node điều khiển</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon hardware">LiDAR</div>
+              <span>LiDAR C1M1</span>
+              <span class="tech-role">Cảm biến khoảng cách</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon hardware">ENC</div>
+              <span>Encoder Motors</span>
+              <span class="tech-role">Phản hồi odometry</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tech-layer reveal" data-delay="100">
+          <div class="layer-label">ROBOT OS</div>
+          <div class="tech-items">
+            <div class="tech-item">
+              <div class="tech-icon ros">ROS2</div>
+              <span>ROS 2 Humble</span>
+              <span class="tech-role">Ubuntu 22.04</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon ros">C++</div>
+              <span>C++ 17</span>
+              <span class="tech-role">Low-level nodes</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon ros">PY</div>
+              <span>Python 3.10</span>
+              <span class="tech-role">BFS & Bridge nodes</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon ros">BFS</div>
+              <span>BFS Algorithm</span>
+              <span class="tech-role">Pathfinding</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tech-layer reveal" data-delay="200">
+          <div class="layer-label">PROTOCOL</div>
+          <div class="tech-items">
+            <div class="tech-item">
+              <div class="tech-icon proto">MQTT</div>
+              <span>MQTT Broker</span>
+              <span class="tech-role">Pub/Sub realtime</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon proto">REST</div>
+              <span>RESTful API</span>
+              <span class="tech-role">HTTPS endpoints</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon proto">WS</div>
+              <span>WebSocket</span>
+              <span class="tech-role">Bidirectional stream</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tech-layer reveal" data-delay="300">
+          <div class="layer-label">FRONTEND</div>
+          <div class="tech-items">
+            <div class="tech-item">
+              <div class="tech-icon front">HTML</div>
+              <span>HTML5 / CSS3</span>
+              <span class="tech-role">Dashboard layout</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon front">JS</div>
+              <span>Vanilla JS</span>
+              <span class="tech-role">Canvas / WebSocket</span>
+            </div>
+            <div class="tech-item">
+              <div class="tech-icon front">React</div>
+              <span>ReactJS / VueJS</span>
+              <span class="tech-role">Component UI</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARCH DIAGRAM -->
+      <div class="arch-flow reveal">
+        <div class="arch-node arch-hw">
+          Hardware<br /><small>RPi + STM32</small>
+        </div>
+        <div class="arch-arrow">
+          <span>ROS 2</span>
+          <svg viewBox="0 0 60 20">
+            <line
+              x1="0"
+              y1="10"
+              x2="55"
+              y2="10"
+              stroke="#00e5ff"
+              stroke-width="1.5"
+            />
+            <polygon points="55,5 60,10 55,15" fill="#00e5ff" />
+          </svg>
+        </div>
+        <div class="arch-node arch-bridge">MQTT<br />Bridge</div>
+        <div class="arch-arrow">
+          <span>MQTT/WS</span>
+          <svg viewBox="0 0 60 20">
+            <line
+              x1="0"
+              y1="10"
+              x2="55"
+              y2="10"
+              stroke="#00e5ff"
+              stroke-width="1.5"
+            />
+            <polygon points="55,5 60,10 55,15" fill="#00e5ff" />
+          </svg>
+        </div>
+        <div class="arch-node arch-server">Backend<br />Server</div>
+        <div class="arch-arrow">
+          <span>REST / WS</span>
+          <svg viewBox="0 0 60 20">
+            <line
+              x1="0"
+              y1="10"
+              x2="55"
+              y2="10"
+              stroke="#00e5ff"
+              stroke-width="1.5"
+            />
+            <polygon points="55,5 60,10 55,15" fill="#00e5ff" />
+          </svg>
+        </div>
+        <div class="arch-node arch-web">Web<br />Dashboard</div>
+      </div>
+    </section>
+
+    <!-- ══════════════ SPECS ══════════════ -->
+    <section class="specs" id="specs">
+      <div class="specs-container">
+        <div class="section-header reveal">
+          <span class="section-tag">// THÔNG SỐ KỸ THUẬT</span>
+          <h2>Physical <span class="accent-text">Specs</span></h2>
+        </div>
+
+        <div class="specs-grid">
+          <div class="spec-card reveal" data-delay="0">
+            <div class="spec-icon">◻</div>
+            <div class="spec-content">
+              <span class="spec-name">Kích thước xe</span>
+              <span class="spec-val">15cm × 14cm</span>
+              <span class="spec-sub">Dài × Rộng (thực tế)</span>
+            </div>
+          </div>
+          <div class="spec-card reveal" data-delay="100">
+            <div class="spec-icon">⊞</div>
+            <div class="spec-content">
+              <span class="spec-name">Kích thước ô lưới</span>
+              <span class="spec-val">20cm × 20cm</span>
+              <span class="spec-sub">Mỗi Grid Cell</span>
+            </div>
+          </div>
+          <div class="spec-card reveal" data-delay="200">
+            <div class="spec-icon">⬛</div>
+            <div class="spec-content">
+              <span class="spec-name">Sa bàn tổng thể</span>
+              <span class="spec-val">2m × 3m</span>
+              <span class="spec-sub">Ma trận 10 × 15 ô</span>
+            </div>
+          </div>
+          <div class="spec-card reveal" data-delay="300">
+            <div class="spec-icon">◎</div>
+            <div class="spec-content">
+              <span class="spec-name">Tọa độ xuất phát</span>
+              <span class="spec-val">(0, 0)</span>
+              <span class="spec-sub">Góc dưới trái — Home Base</span>
+            </div>
+          </div>
+          <div class="spec-card reveal" data-delay="400">
+            <div class="spec-icon">⚡</div>
+            <div class="spec-content">
+              <span class="spec-name">Thuật toán tìm đường</span>
+              <span class="spec-val">BFS</span>
+              <span class="spec-sub">Breadth-First Search</span>
+            </div>
+          </div>
+          <div class="spec-card reveal" data-delay="500">
+            <div class="spec-icon">◈</div>
+            <div class="spec-content">
+              <span class="spec-name">Mô hình kiến trúc</span>
+              <span class="spec-val">Digital Twin</span>
+              <span class="spec-sub">Bản sao số đồng bộ thực</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="team" id="team">
+      <div class="section-header reveal">
+        <span class="section-tag">// ĐỘI NGŨ PHÁT TRIỂN</span>
+        <h2>Team <span class="accent-text">Members</span></h2>
+        <p>Những thành viên chủ chốt thực hiện dự án AGV</p>
+      </div>
+
+      <div class="slider-container reveal" data-delay="100">
+        <button class="slider-btn prev-btn" id="prevBtn">&#10094;</button>
+        <div class="slider-track" id="sliderTrack">
+          <div class="team-card">
+            <div class="member-avatar"></div>
+            <h3 class="member-name">Hoàng</h3>
+            <p class="member-role">Hardware & ROS 2</p>
+            <p class="member-task">
+              Phát triển node điều khiển trung tâm, thiết lập odometry và cấu
+              hình phần cứng.
+            </p>
+          </div>
+          <div class="team-card">
+            <div class="member-avatar"></div>
+            <h3 class="member-name">Thành viên 2</h3>
+            <p class="member-role">Web Dashboard</p>
+            <p class="member-task">[Nhiệm vụ sẽ được cập nhật sau]</p>
+          </div>
+          <div class="team-card">
+            <div class="member-avatar"></div>
+            <h3 class="member-name">Thành viên 3</h3>
+            <p class="member-role">AI & Pathfinding</p>
+            <p class="member-task">[Nhiệm vụ sẽ được cập nhật sau]</p>
+          </div>
+          <div class="team-card">
+            <div class="member-avatar"></div>
+            <h3 class="member-name">Thành viên 4</h3>
+            <p class="member-role">MQTT Bridge</p>
+            <p class="member-task">[Nhiệm vụ sẽ được cập nhật sau]</p>
+          </div>
+          <div class="team-card">
+            <div class="member-avatar"></div>
+            <h3 class="member-name">Thành viên 5</h3>
+            <p class="member-role">3D Modeling</p>
+            <p class="member-task">[Nhiệm vụ sẽ được cập nhật sau]</p>
+          </div>
+          <div class="team-card">
+            <div class="member-avatar"></div>
+            <h3 class="member-name">Thành viên 6</h3>
+            <p class="member-role">Testing & QA</p>
+            <p class="member-task">[Nhiệm vụ sẽ được cập nhật sau]</p>
+          </div>
+        </div>
+        <button class="slider-btn next-btn" id="nextBtn">&#10095;</button>
+      </div>
+    </section>
+
+    <!-- ══════════════ FOOTER ══════════════ -->
+    <footer class="footer">
+      <div class="footer-grid-line"></div>
+      <div class="footer-inner">
+        <div class="footer-logo">
+          <span class="logo-bracket">[</span>
+          <span class="logo-text">AGV</span>
+          <span class="logo-sub">_CTRL</span>
+          <span class="logo-bracket">]</span>
+        </div>
+        <div class="footer-info">
+          <p>Đồ án môn học — Hệ thống Xe Tự Hành & Trung tâm Điều khiển IoT</p>
+          <p class="footer-stack">
+            ROS 2 Humble · MQTT · BFS · Digital Twin · Web Dashboard
+          </p>
+        </div>
+        <div class="footer-contact">
+          <p><strong>[ LIÊN HỆ ]</strong></p>
+          <p>✆ Tel: (+84) 123 456 789</p>
+          <p>✉ Email: contact@agv-project.vn</p>
+          <p>📍 Add: Lab Robotics, [Tên Trường/Viện]</p>
+        </div>
+        <div class="footer-status">
+          <span class="badge-dot"></span>
+          <span>SYSTEM OPERATIONAL</span>
+        </div>
+      </div>
+      <div class="footer-copy">
+        <span>Built with ◈ for IoT Engineering Project</span>
+        <span class="footer-coords" id="footerTime">——</span>
+      </div>
+    </footer>
+
+    <script src="../js/main.js"></script>
+  </body>
+</html>
