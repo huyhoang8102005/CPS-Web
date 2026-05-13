@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AGV Control — Access Terminal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@600;700;900&family=Roboto:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/auth.css" />
+  </head>
+  <body>
+    <!-- BG CANVAS -->
+    <canvas id="bgCanvas"></canvas>
+
+    <!-- SCANLINE OVERLAY -->
+    <div class="scanlines"></div>
+
+    <!-- NOISE -->
+    <div class="noise"></div>
+
+    <!-- BACK LINK -->
+    <a href="index.html" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path
+          d="M10 3L5 8L10 13"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+        />
+      </svg>
+      <span>AGV_CTRL</span>
+    </a>
+
+    <!-- MAIN WRAPPER -->
+    <div class="auth-wrapper">
+      <!-- LEFT SIDE — BRANDING -->
+      <div class="auth-left">
+        <div class="left-content">
+          <div class="brand-mark">
+            <div class="brand-text">
+              <div class="brand-name glitch" data-text="AGV_CTRL">AGV_CTRL</div>
+              <div class="brand-sub">AUTONOMOUS VEHICLE SYSTEM</div>
+            </div>
+          </div>
+
+          <div class="lidar-wrapper">
+            <div class="lidar-container">
+              <div class="lidar-grid"></div>
+              <div class="lidar-beam"></div>
+              <div class="agv-blip blip-1">
+                <div class="blip-label">AGV-01</div>
+              </div>
+              <div class="agv-blip blip-2">
+                <div class="blip-label">AGV-04</div>
+              </div>
+              <div class="agv-blip blip-3">
+                <div class="blip-label">NODE-X</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="live-terminal">
+            <div class="term-header">
+              <span class="term-dot red"></span>
+              <span class="term-dot yellow"></span>
+              <span class="term-dot green"></span>
+              SYSTEM_BOOT_LOG //
+            </div>
+            <div class="term-body" id="termLog"></div>
+          </div>
+        </div>
+
+        <!-- Decorative grid lines -->
+        <div class="left-grid"></div>
+      </div>
+
+      <!-- RIGHT SIDE — FORM -->
+      <div class="auth-right">
+        <!-- TAB SWITCHER -->
+        <div class="tab-switch">
+          <button
+            class="tab-btn active"
+            id="tabLogin"
+            onclick="switchTab('login')"
+          >
+            <span class="tab-icon">▶</span> ĐĂNG NHẬP
+          </button>
+          <button
+            class="tab-btn"
+            id="tabRegister"
+            onclick="switchTab('register')"
+          >
+            <span class="tab-icon">◈</span> ĐĂNG KÝ
+          </button>
+          <div class="tab-indicator" id="tabIndicator"></div>
+        </div>
+
+        <!-- FORM CONTAINER (flips) -->
+        <div class="form-container" id="formContainer">
+          <!-- ═══ LOGIN FORM ═══ -->
+          <form class="auth-form" id="loginForm" onsubmit="handleLogin(event)">
+            <div class="form-header">
+              <h2 class="form-title">ACCESS TERMINAL</h2>
+              <p class="form-sub">Nhập thông tin xác thực để tiếp tục</p>
+            </div>
+
+            <div class="field-group">
+              <div class="field" id="fieldUser">
+                <label class="field-label" for="loginUser">
+                  <span class="field-icon">◉</span> USERNAME / EMAIL
+                </label>
+                <div class="field-wrap">
+                  <input
+                    type="text"
+                    id="loginUser"
+                    class="field-input"
+                    placeholder="operator@agv.io"
+                    autocomplete="off"
+                  />
+                  <div class="field-line"></div>
+                  <div class="field-scan"></div>
+                </div>
+                <span class="field-error" id="errUser"></span>
+              </div>
+
+              <div class="field" id="fieldPass">
+                <label class="field-label" for="loginPass">
+                  <span class="field-icon">◉</span> PASSWORD
+                </label>
+                <div class="field-wrap">
+                  <input
+                    type="password"
+                    id="loginPass"
+                    class="field-input"
+                    placeholder="••••••••••••"
+                    autocomplete="off"
+                  />
+                  <button
+                    type="button"
+                    class="eye-btn"
+                    onclick="togglePass('loginPass', this)"
+                  >
+                    <svg class="eye-icon" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="3"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                  <div class="field-line"></div>
+                  <div class="field-scan"></div>
+                </div>
+                <span class="field-error" id="errPass"></span>
+              </div>
+            </div>
+
+            <div class="form-options">
+              <label class="checkbox-wrap">
+                <input type="checkbox" id="rememberMe" />
+                <span class="checkbox-custom"></span>
+                <span class="checkbox-label">Ghi nhớ phiên</span>
+              </label>
+              <a href="#" class="forgot-link">Quên mật khẩu?</a>
+            </div>
+
+            <button type="submit" class="submit-btn" id="loginBtn">
+              <span class="btn-text">XÁC THỰC & TRUY CẬP</span>
+              <span class="btn-loader" id="loginLoader"></span>
+              <div class="btn-ripple"></div>
+            </button>
+
+            <div class="divider"><span>hoặc tiếp tục với</span></div>
+
+            <div class="oauth-row">
+              <button
+                type="button"
+                class="oauth-btn"
+                onclick="handleGoogleLogin()"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                  <path
+                    fill="currentColor"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    opacity=".7"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                    opacity=".5"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                    opacity=".3"
+                  />
+                </svg>
+                Google
+              </button>
+            </div>
+          </form>
+
+          <!-- ═══ REGISTER FORM ═══ -->
+          <form
+            class="auth-form hidden"
+            id="registerForm"
+            onsubmit="handleRegister(event)"
+          >
+            <div class="form-header">
+              <h2 class="form-title">CREATE OPERATOR</h2>
+              <p class="form-sub">Tạo tài khoản để quản lý hệ thống AGV</p>
+            </div>
+
+            <div class="field-group">
+              <div class="field-row">
+                <div class="field">
+                  <label class="field-label" for="regFirst">
+                    <span class="field-icon">◉</span> HỌ
+                  </label>
+                  <div class="field-wrap">
+                    <input
+                      type="text"
+                      id="regFirst"
+                      class="field-input"
+                      placeholder="Nguyễn"
+                    />
+                    <div class="field-line"></div>
+                    <div class="field-scan"></div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="regLast">
+                    <span class="field-icon">◉</span> TÊN
+                  </label>
+                  <div class="field-wrap">
+                    <input
+                      type="text"
+                      id="regLast"
+                      class="field-input"
+                      placeholder="Văn A"
+                    />
+                    <div class="field-line"></div>
+                    <div class="field-scan"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="regEmail">
+                  <span class="field-icon">◉</span> EMAIL
+                </label>
+                <div class="field-wrap">
+                  <input
+                    type="email"
+                    id="regEmail"
+                    class="field-input"
+                    placeholder="operator@agv.io"
+                  />
+                  <div class="field-line"></div>
+                  <div class="field-scan"></div>
+                </div>
+                <span class="field-error" id="errRegEmail"></span>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="regPass">
+                  <span class="field-icon">◉</span> MẬT KHẨU
+                </label>
+                <div class="field-wrap">
+                  <input
+                    type="password"
+                    id="regPass"
+                    class="field-input"
+                    placeholder="••••••••••••"
+                    oninput="checkStrength(this.value)"
+                  />
+                  <button
+                    type="button"
+                    class="eye-btn"
+                    onclick="togglePass('regPass', this)"
+                  >
+                    <svg class="eye-icon" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="3"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                  <div class="field-line"></div>
+                  <div class="field-scan"></div>
+                </div>
+                <!-- Strength meter -->
+                <div class="strength-meter">
+                  <div class="strength-bar" id="strengthBar"></div>
+                </div>
+                <span class="strength-label" id="strengthLabel"></span>
+              </div>
+
+              <div class="field">
+                <label class="field-label" for="regRole">
+                  <span class="field-icon">◉</span> VAI TRÒ
+                </label>
+                <div class="field-wrap select-wrap">
+                  <select id="regRole" class="field-input field-select">
+                    <option value="">-- Chọn vai trò --</option>
+                    <option value="operator">Operator — Điều khiển xe</option>
+                    <option value="admin">
+                      Admin — Quản trị toàn hệ thống
+                    </option>
+                  </select>
+                  <div class="field-line"></div>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="regBtn">
+              <span class="btn-text">TẠO TÀI KHOẢN OPERATOR</span>
+              <span class="btn-loader" id="regLoader"></span>
+              <div class="btn-ripple"></div>
+            </button>
+          </form>
+        </div>
+        <!-- /form-container -->
+
+        <!-- SUCCESS OVERLAY -->
+        <div class="success-overlay" id="successOverlay">
+          <div class="success-hex">
+            <svg viewBox="0 0 100 115" fill="none">
+              <path
+                d="M50 2L97 27.5V77.5L50 103L3 77.5V27.5Z"
+                stroke="currentColor"
+                stroke-width="1.5"
+              />
+            </svg>
+            <div class="success-check">✓</div>
+          </div>
+          <div class="success-title" id="successTitle">ACCESS GRANTED</div>
+          <div class="success-sub" id="successSub">
+            Đang khởi tạo phiên làm việc...
+          </div>
+          <div class="success-bar">
+            <div class="success-fill" id="successFill"></div>
+          </div>
+        </div>
+
+        <!-- Corner decorations -->
+        <div class="form-corner fc-tl"></div>
+        <div class="form-corner fc-tr"></div>
+        <div class="form-corner fc-bl"></div>
+        <div class="form-corner fc-br"></div>
+      </div>
+    </div>
+    <!-- /auth-wrapper -->
+
+    <script type="module" src="../js/login.js"></script>
+    <script
+      type="text/javascript"
+      src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"
+    ></script>
+    <script type="text/javascript">
+      (function () {
+        emailjs.init("pSOtYTxqCkgZeIAHQ");
+      })();
+    </script>
+  </body>
+</html>
