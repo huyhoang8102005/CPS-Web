@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AGV Control Center — Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/dashboard.css" />
+  </head>
+  <body>
+    <div class="scanlines"></div>
+
+    <header class="topnav">
+      <div class="nav-left">
+        <a href="index.html" class="nav-logo">
+          <span class="logo-br">[</span><span class="logo-t">CPS</span
+          ><span class="logo-s">_car</span><span class="logo-br">]</span>
+        </a>
+        <div class="nav-divider"></div>
+        <span class="nav-page">CONTROL DASHBOARD</span>
+      </div>
+
+      <div class="nav-center">
+        <div class="sys-status" id="sysStatus">
+          <span class="status-dot dot-green"></span>
+          <span class="status-text" id="statusText">SYSTEM ONLINE</span>
+        </div>
+        <div class="nav-time" id="navTime">——</div>
+      </div>
+
+      <div class="nav-right">
+        <div class="nav-stat">
+          <span class="ns-label">LATENCY</span>
+          <span class="ns-val" id="latencyVal">8ms</span>
+        </div>
+        <div class="nav-stat">
+          <span class="ns-label">UPTIME</span>
+          <span class="ns-val" id="uptimeVal">00:00:00</span>
+        </div>
+        <div class="nav-battery">
+          <span class="bat-label" id="batPct">78%</span>
+          <div class="bat-shell">
+            <div class="bat-fill" id="batFill" style="width: 78%"></div>
+          </div>
+          <span class="bat-tip"></span>
+        </div>
+        <button
+          class="nav-btn"
+          onclick="toggleEmergency()"
+          id="eStopBtn"
+          title="EMERGENCY STOP"
+        >
+          ⬛ E-STOP
+        </button>
+      </div>
+    </header>
+
+    <div class="dash-layout">
+      <aside class="panel-left">
+        <div class="widget">
+          <div class="widget-header">
+            <span class="widget-icon">◎</span>
+            <span class="widget-title">POSITION</span>
+            <span class="widget-live">LIVE</span>
+          </div>
+          <div class="pos-display">
+            <div class="pos-item">
+              <span class="pos-axis">X</span>
+              <span class="pos-val" id="dispX">00</span>
+              <span class="pos-unit">col</span>
+            </div>
+            <div class="pos-sep">·</div>
+            <div class="pos-item">
+              <span class="pos-axis">Y</span>
+              <span class="pos-val" id="dispY">00</span>
+              <span class="pos-unit">row</span>
+            </div>
+            <div class="pos-sep">·</div>
+            <div class="pos-item">
+              <span class="pos-axis">θ</span>
+              <span class="pos-val" id="dispTheta">0</span>
+              <span class="pos-unit">°</span>
+            </div>
+          </div>
+          <div class="compass-wrap">
+            <div class="compass" id="compass">
+              <div class="compass-ring"></div>
+              <div class="compass-needle" id="compassNeedle"></div>
+              <span class="compass-n">N</span>
+              <span class="compass-e">E</span>
+              <span class="compass-s">S</span>
+              <span class="compass-w">W</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-header">
+            <span class="widget-icon">⚡</span>
+            <span class="widget-title">VELOCITY</span>
+          </div>
+          <div class="vel-meters">
+            <div class="vel-row">
+              <div class="vel-meta">
+                <span class="vel-label">LINEAR V</span>
+                <span class="vel-val" id="velV">0.00</span>
+                <span class="vel-unit">m/s</span>
+              </div>
+              <div class="arc-wrap">
+                <canvas
+                  class="arc-canvas"
+                  id="arcV"
+                  width="100"
+                  height="55"
+                ></canvas>
+              </div>
+            </div>
+            <div class="vel-row">
+              <div class="vel-meta">
+                <span class="vel-label">ANGULAR ω</span>
+                <span class="vel-val" id="velW">0.00</span>
+                <span class="vel-unit">rad/s</span>
+              </div>
+              <div class="arc-wrap">
+                <canvas
+                  class="arc-canvas"
+                  id="arcW"
+                  width="100"
+                  height="55"
+                ></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-header">
+            <span class="widget-icon">◈</span>
+            <span class="widget-title">AGV STATUS</span>
+          </div>
+          <div class="status-states">
+            <div class="state-item" id="stateIdle">
+              <div class="state-dot dot-idle"></div>
+              <span class="state-label">IDLE</span>
+              <span class="state-check" id="checkIdle">—</span>
+            </div>
+            <div class="state-item" id="stateMoving">
+              <div class="state-dot dot-moving"></div>
+              <span class="state-label">MOVING</span>
+              <span class="state-check" id="checkMoving">✓</span>
+            </div>
+            <div class="state-item" id="stateObstacle">
+              <div class="state-dot dot-obs"></div>
+              <span class="state-label">OBSTACLE DETECTED</span>
+              <span class="state-check" id="checkObs">—</span>
+            </div>
+          </div>
+          <div class="status-bar-wrap">
+            <div class="status-bar-fill" id="statusBarFill"></div>
+          </div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-header">
+            <span class="widget-icon">⬤</span>
+            <span class="widget-title">LIPO BATTERY</span>
+            <span class="widget-val-inline" id="batPct2">78%</span>
+          </div>
+          <div class="bat-meter">
+            <div class="bat-cells">
+              <div class="bat-cell" id="bc1"></div>
+              <div class="bat-cell" id="bc2"></div>
+              <div class="bat-cell" id="bc3"></div>
+              <div class="bat-cell" id="bc4"></div>
+              <div class="bat-cell" id="bc5"></div>
+            </div>
+            <div class="bat-track">
+              <div class="bat-prog" id="batProg" style="width: 78%"></div>
+            </div>
+            <div class="bat-info">
+              <span id="batVolt">11.4V</span>
+              <span id="batTime">~42 min</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="widget widget-log">
+          <div class="widget-header">
+            <span class="widget-icon">▶</span>
+            <span class="widget-title">SYSTEM LOG</span>
+            <button class="log-clear" onclick="clearLog()">CLR</button>
+          </div>
+          <div class="log-feed" id="logFeed"></div>
+        </div>
+      </aside>
+
+      <main class="panel-center">
+        <div class="map-toolbar">
+          <div class="map-info">
+            <span class="map-badge">10 × 15 GRID</span>
+            <span class="map-badge">2m × 3m ARENA</span>
+            <span class="map-badge" id="pathBadge">BFS: — steps</span>
+          </div>
+          <div class="map-controls">
+            <button
+              class="mctrl-btn"
+              onclick="mapAction('reset')"
+              title="Dịch chuyển tức thời về tọa độ (0,0)"
+            >
+              ⟲ RESET (0,0)
+            </button>
+            <button
+              class="mctrl-btn"
+              onclick="mapAction('home')"
+              title="Tìm đường về Home"
+            >
+              HOME
+            </button>
+            <button
+              class="mctrl-btn"
+              onclick="mapAction('clear')"
+              title="Xóa path"
+            >
+              ✕ CLEAR PATH
+            </button>
+            <button
+              class="mctrl-btn mctrl-active"
+              onclick="mapAction('start')"
+              title="Bắt đầu chạy"
+            >
+              ▶ START AGV
+            </button>
+            <button
+              class="mctrl-btn"
+              id="btnObstacle"
+              onclick="mapAction('obstacle')"
+              title="Bật/Tắt chế độ thêm vật cản"
+            >
+              ⬛ OBSTACLE
+            </button>
+          </div>
+        </div>
+
+        <div class="map-wrap" id="mapWrap">
+          <div class="map-frame">
+            <div class="axis-y" id="axisY"></div>
+            <div class="axis-x" id="axisX"></div>
+
+            <canvas id="mapCanvas"></canvas>
+
+            <div class="goal-tooltip" id="goalTooltip">
+              <span id="goalTooltipText">Click để đặt mục tiêu</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="map-legend">
+          <div class="leg-item"><span class="leg-swatch sw-agv"></span>AGV</div>
+          <div class="leg-item">
+            <span class="leg-swatch sw-path"></span>BFS Path
+          </div>
+          <div class="leg-item">
+            <span class="leg-swatch sw-goal"></span>Goal
+          </div>
+          <div class="leg-item">
+            <span class="leg-swatch sw-home"></span>Home
+          </div>
+          <div class="leg-item">
+            <span class="leg-swatch sw-obs"></span>Obstacle
+          </div>
+          <div class="leg-item">
+            <span class="leg-swatch sw-visited"></span>Visited
+          </div>
+          <div class="map-hint">
+            💡 Click ô trên bản đồ để đặt điểm đến rồi nhấn START
+          </div>
+        </div>
+      </main>
+    </div>
+    <script src="../js/dashboard.js"></script>
+  </body>
+</html>
