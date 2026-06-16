@@ -1155,3 +1155,124 @@ code { font-family: var(--font-mono); color: var(--cyan); font-size: 0.9em; }
   .slider-btn { margin: 0 5px; width: 36px; height: 36px; }
   .team { padding: 70px 24px; }
 }
+/* ═══════════════════════════════════════════════
+   FRESH LIGHT THEME OVERRIDE — added by ChatGPT
+   Mục tiêu: sáng hơn, tươi hơn, vẫn giữ style AGV/IoT
+═══════════════════════════════════════════════ */
+:root {
+  --cyan:      #0284c7;
+  --cyan-dim:  #0ea5e9;
+  --green:     #16a34a;
+  --orange:    #f97316;
+  --bg:        #f8fbff;
+  --bg2:       #eef7ff;
+  --bg3:       #e0f2fe;
+  --surface:   #ffffff;
+  --surface2:  #f0f9ff;
+  --border:    rgba(14, 165, 233, 0.28);
+  --border2:   rgba(14, 165, 233, 0.16);
+  --text:      #1e293b;
+  --text-dim:  #475569;
+  --text-muted:#64748b;
+  --white:     #0f172a;
+  --glow:      0 8px 26px rgba(14, 165, 233, 0.20);
+  --glow-lg:   0 14px 50px rgba(14, 165, 233, 0.22), 0 0 90px rgba(34, 197, 94, 0.10);
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(125, 211, 252, 0.34), transparent 34%),
+    radial-gradient(circle at 82% 18%, rgba(187, 247, 208, 0.34), transparent 28%),
+    linear-gradient(135deg, #f8fbff 0%, #eef7ff 48%, #f7fee7 100%);
+  color: var(--text);
+}
+
+.noise-overlay { opacity: 0.16; mix-blend-mode: multiply; }
+
+.navbar,
+.navbar.scrolled {
+  background: rgba(255, 255, 255, 0.82);
+  border-bottom: 1px solid rgba(14, 165, 233, 0.18);
+  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.08);
+}
+.logo-text, .line-3 { color: #0f172a; }
+.logo-bracket, .logo-sub, .accent-text { color: var(--cyan); text-shadow: none; }
+.nav-links a { color: #475569; }
+.nav-links a:hover { color: var(--cyan); }
+.nav-cta {
+  background: linear-gradient(135deg, #e0f2fe, #dcfce7) !important;
+  color: #0369a1 !important;
+  border-color: rgba(14, 165, 233, 0.32);
+}
+
+.hero {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.92), rgba(240,249,255,0.88)),
+    radial-gradient(circle at 70% 30%, rgba(14,165,233,0.18), transparent 34%);
+}
+#heroCanvas { opacity: 0.35; }
+.hero-badge,
+.coord-item,
+.hero-visual,
+.feature-card,
+.spec-card,
+.tech-layer,
+.demo-container,
+.team-card,
+.live-terminal,
+.mini-grid-wrap {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(14, 165, 233, 0.20) !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: blur(14px);
+}
+.line-1 { color: #475569; }
+.line-2 { color: #0284c7; text-shadow: 0 10px 34px rgba(14,165,233,0.22); }
+.hero-subtitle { color: #334155; border-right-color: var(--cyan); }
+
+.btn-primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0ea5e9, #22c55e);
+  border-color: transparent;
+  box-shadow: 0 16px 32px rgba(14, 165, 233, 0.24);
+}
+.btn-primary:hover { color: #ffffff; }
+.btn-outline {
+  color: #0369a1;
+  background: rgba(255,255,255,0.72);
+  border-color: rgba(14, 165, 233, 0.28);
+}
+.btn-outline:hover { background: #e0f2fe; color: #075985; }
+
+.stats-bar,
+.features,
+.specs,
+.techstack,
+.demo-section,
+.team,
+.footer {
+  background: transparent !important;
+  border-color: rgba(14, 165, 233, 0.14) !important;
+}
+.section-tag, .stat-label, .coord-label, .hv-tele-label, .spec-sub, .tech-role,
+.card-desc, .footer-contact, .footer-copy { color: #64748b; }
+.card-title, .section-header h2, .member-name, .spec-name, .layer-label { color: #0f172a; }
+.card-number { color: rgba(14, 165, 233, 0.18); }
+.card-glow, .card-glow-center { opacity: 0.25; }
+code { background: #e0f2fe; padding: 1px 5px; border-radius: 5px; }
+
+.hv-map-wrap,
+.demo-visual {
+  background: linear-gradient(135deg, #ffffff, #ecfeff) !important;
+  border-color: rgba(14, 165, 233, 0.18) !important;
+}
+.hv-scanline, .scroll-indicator { opacity: 0.55; }
+
+@media (max-width: 768px) {
+  .nav-links {
+    background: rgba(255, 255, 255, 0.96) !important;
+    border-right-color: rgba(14, 165, 233, 0.20) !important;
+    box-shadow: 18px 0 40px rgba(15, 23, 42, 0.10) !important;
+  }
+  .nav-links a { color: #475569; }
+}

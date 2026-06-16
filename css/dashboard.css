@@ -726,17 +726,35 @@ body {
   display: flex;
   flex-direction: column;
   background: var(--bg);
-  overflow: hidden;
-  padding: 18px 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 24px 24px 24px; /* ĐỔI TỪ 18px 24px THÀNH 0 ở phía trên (Top) */
+  padding-top: 14px;        /* Đảm bảo khoảng cách vừa phải từ mép trên layout */
   gap: 14px;
+  min-height: 0;
+}
+
+.panel-center::-webkit-scrollbar {
+  width: 5px;
+}
+
+.panel-center::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
 }
 
 /* Toolbar */
 .map-toolbar {
+  position: sticky;        /* THÊM DÒNG NÀY: Để ghim thanh công cụ */
+  top: 0;                  /* THÊM DÒNG NÀY: Dính chặt vào đỉnh đầu của vùng .panel-center */
+  z-index: 20;             /* THÊM DÒNG NÀY: Đảm bảo thanh công cụ luôn nổi lên trên bản đồ khi cuộn */
+  background: var(--bg);   /* THÊM DÒNG NÀY: Đổ nền tối để khi bản đồ trượt xuống dưới sẽ không bị lộ chữ xuyên qua */
+  padding-bottom: 12px;    /* THÊM DÒNG NÀY: Tạo khoảng cách nhỏ với bản đồ phía dưới cho đẹp */
+  
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-shrink: 0;
+  border-bottom: 1px solid var(--border2);
 }
 .map-info {
   display: flex;
@@ -783,14 +801,17 @@ body {
 .map-wrap {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  align-items: flex-start;  /* ĐỔI TỪ center THÀNH flex-start */
+  justify-content: center; /* Giữ nguyên để căn giữa theo chiều ngang */
+  overflow: visible;        /* ĐỔI TỪ hidden THÀNH visible để không cản trở thanh cuộn */
   position: relative;
+  padding-top: 20px;       /* Thêm một chút khoảng cách phía trên cho đẹp */
 }
 .map-frame {
   position: relative;
-  display: inline-flex;
+  /* Đảm bảo kích thước của khung bao ngoài khít hoàn toàn theo Canvas (10 cột x 55px = 550px, 15 hàng x 55px = 825px) */
+  width: 550px;  
+  height: 825px; 
 }
 canvas#mapCanvas {
   display: block;
@@ -803,22 +824,39 @@ canvas#mapCanvas {
 }
 .axis-y {
   position: absolute;
-  right: 100%;
+  left: -28px;               /* Đẩy lùi ra thêm một chút để không chạm vách canvas */
   top: 0;
-  bottom: 0;
+  width: 24px;
+  height: 100%;
   display: flex;
-  flex-direction: column;
-  justify-content: space-around;
-  padding-right: 8px;
+  flex-direction: column;    /* Xếp từ trên xuống dưới */
+  color: var(--muted);
+  font-family: var(--font-m);
+  font-size: 0.75rem;
+}
+.axis-y span {
+  height: 55px;              /* KHỚP HOÀN TOÀN với kích thước CELL */
+  display: flex;
+  align-items: center;       /* Căn giữa chữ theo chiều dọc ô lưới */
+  justify-content: flex-end; /* Đẩy chữ sát về phía canvas cho dễ nhìn */
 }
 .axis-x {
   position: absolute;
-  top: 100%;
   left: 0;
-  right: 0;
+  bottom: -28px;             /* Đẩy dịch xuống dưới để không đè cạnh canvas */
+  width: 100%;
+  height: 24px;
   display: flex;
-  justify-content: space-around;
-  padding-top: 8px;
+  flex-direction: row;       /* Xếp từ trái qua phải */
+  color: var(--muted);
+  font-family: var(--font-m);
+  font-size: 0.75rem;
+}
+.axis-x span {
+  width: 55px;               /* KHỚP HOÀN TOÀN với kích thước CELL */
+  display: flex;
+  align-items: center;
+  justify-content: center;   /* Căn giữa chữ theo chiều ngang ô lưới */
 }
 .axis-label {
   font-family: var(--font-m);
@@ -858,6 +896,7 @@ canvas#mapCanvas {
   gap: 20px;
   flex-wrap: wrap;
   flex-shrink: 0;
+  margin-top: 20px;
 }
 .leg-item {
   display: flex;
@@ -903,3 +942,104 @@ canvas#mapCanvas {
   margin-left: auto;
   letter-spacing: 0.04em;
 }
+
+/* ═══════════════════════════════════════════════
+   FRESH LIGHT THEME OVERRIDE — added by ChatGPT
+═══════════════════════════════════════════════ */
+:root {
+  --cyan: #0284c7;
+  --cyan-d: #0ea5e9;
+  --green: #16a34a;
+  --orange: #f97316;
+  --red: #dc2626;
+  --purple: #7c3aed;
+  --yellow: #eab308;
+  --bg: #f8fbff;
+  --bg2: #eef7ff;
+  --bg3: #e0f2fe;
+  --surface: #ffffff;
+  --surface2: #f0f9ff;
+  --border: rgba(14, 165, 233, 0.24);
+  --border2: rgba(14, 165, 233, 0.13);
+  --text: #1e293b;
+  --text-d: #475569;
+  --muted: #64748b;
+  --white: #0f172a;
+  --glow: 0 10px 26px rgba(14, 165, 233, 0.18);
+  --glow-g: 0 10px 24px rgba(34, 197, 94, 0.18);
+  --glow-r: 0 10px 24px rgba(220, 38, 38, 0.16);
+}
+
+html, body {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(125, 211, 252, 0.38), transparent 30%),
+    radial-gradient(circle at 92% 15%, rgba(187, 247, 208, 0.32), transparent 28%),
+    linear-gradient(135deg, #f8fbff 0%, #eef7ff 52%, #f7fee7 100%);
+  color: var(--text);
+}
+.scanlines { opacity: 0.12; mix-blend-mode: multiply; }
+
+.topnav {
+  background: rgba(255, 255, 255, 0.86);
+  border-bottom-color: rgba(14, 165, 233, 0.18);
+  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.08);
+}
+.logo-t, .nav-page { color: #0f172a; }
+.nav-time, .ns-label, .widget-title, .pos-axis, .pos-unit, .state-label, .vel-label, .map-hint { color: #64748b; }
+.ns-val, .pos-val, .vel-val { color: #0284c7; text-shadow: none; }
+
+.dash-layout { background: transparent; }
+.panel-left,
+.panel-center {
+  background: rgba(255, 255, 255, 0.45);
+}
+.panel-left { border-right-color: rgba(14, 165, 233, 0.16); }
+
+.widget,
+.map-toolbar,
+.map-frame,
+.map-controls,
+.map-legend,
+.status-states,
+.vel-row,
+.bat-meter,
+.log-feed,
+.compass,
+.state-item,
+.mctrl-btn,
+.map-badge {
+  background: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(14, 165, 233, 0.18) !important;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.07) !important;
+  backdrop-filter: blur(12px);
+}
+.widget { border-bottom-color: rgba(14, 165, 233, 0.12); }
+.widget-header { margin-bottom: 14px; }
+
+.map-wrap {
+  background:
+    linear-gradient(rgba(14, 165, 233, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 233, 0.10) 1px, transparent 1px),
+    linear-gradient(135deg, #ffffff, #ecfeff) !important;
+  border-color: rgba(14, 165, 233, 0.20) !important;
+}
+.map-badge { color: #0369a1; }
+.mctrl-btn { color: #0369a1; }
+.mctrl-btn:hover, .mctrl-btn.mctrl-active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #0ea5e9, #22c55e) !important;
+  border-color: transparent !important;
+}
+
+.nav-btn {
+  background: #fff1f2;
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.24);
+}
+.nav-btn:hover { background: #ffe4e6; }
+.status-bar-wrap, .bat-track { background: #e2e8f0; }
+.log-entry-item { background: rgba(240, 249, 255, 0.82); border-color: rgba(14, 165, 233, 0.12); }
+.log-msg { color: #334155; }
+.log-ts, .log-tag { color: #64748b; }
+.sw-obs { background: #cbd5e1; border-color: rgba(100, 116, 139, 0.38); }
+.sw-visited { background: #ede9fe; border-color: rgba(124, 58, 237, 0.24); }

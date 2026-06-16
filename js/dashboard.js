@@ -1,42 +1,27 @@
 "use strict";
 /* ═══════════════════════════════════════════
    AGV DASHBOARD — dashboard.js
-   Modules: Grid/BFS, Telemetry, Compass,
+   Modules: Grid/Dijkstra, Telemetry, Compass,
             Arc Gauges, Log, MQTT sim
 ═══════════════════════════════════════════ */
 
 /* ── GRID CONFIG ─────────────────────────────── */
-const COLS = 15,
-  ROWS = 10;
+const COLS = 10,
+  ROWS = 15;
 const CELL = 55;
 
 /* ── GLOBAL STATE ────────────────────────────── */
 const state = {
-  agv: { col: 0, row: 0, angle: 0 },
+  agv: { col: 0, row: 0, angle: 0 },  // Đặt xe mặc định ở (0,0) - Góc dưới trái
   goal: { col: 0, row: 0 },
   home: { col: 0, row: 0 },
+  prevPos: null,                      // Lưu vị trí cũ trước khi di chuyển
   path: [],
   pathStep: 0,
   moving: false,
   estop: false,
   agvStatus: "idle",
-  battery: 78,
   velocity: { v: 0, w: 0 },
-  obstacles: new Set([
-    "3,3",
-    "3,4",
-    "3,5",
-    "8,1",
-    "8,2",
-    "11,6",
-    "11,7",
-    "11,8",
-    "5,7",
-    "6,7",
-    "2,0",
-    "2,1",
-  ]),
-  obstacleMode: false, // FLAG KIỂM SOÁT CHẾ ĐỘ VẬT CẢN
   mqttTx: 0,
   mqttRx: 0,
   uptime: 0,
@@ -46,56 +31,81 @@ const state = {
 };
 
 /* ═══════════════════════════════════════════
-   BFS PATHFINDING
+   DIJKSTRA PATHFINDING ALGORITHM
 ═══════════════════════════════════════════ */
-function bfs(sc, sr, gc, gr) {
+function dijkstra(sc, sr, gc, gr) {
   if (sc === gc && sr === gr) return [];
+  
   const key = (c, r) => `${c},${r}`;
-  const q = [[sc, sr]];
-  const parent = new Map([[key(sc, sr), null]]);
+  const dist = new Map();     // Lưu chi phí nhỏ nhất để đến từng node
+  const parent = new Map();   // Lưu dấu đường đi
+  const pq = [];              // Priority Queue (Hàng đợi ưu tiên)
+
+  // Khởi tạo điểm xuất phát
+  dist.set(key(sc, sr), 0);
+  parent.set(key(sc, sr), null);
+  pq.push({ c: sc, r: sr, cost: 0 });
+
   const dirs = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
+    [1, 0],   // Phải
+    [-1, 0],  // Trái
+    [0, 1],   // Lên
+    [0, -1],  // Xuống
   ];
 
-  while (q.length) {
-    const [cc, cr] = q.shift();
+  while (pq.length > 0) {
+    // Sắp xếp lại Queue để lấy Node có cost thấp nhất (Dijkstra cốt lõi)
+    pq.sort((a, b) => a.cost - b.cost);
+    const curr = pq.shift();
+    const cc = curr.c;
+    const cr = curr.r;
+
+    // Nếu đã tới đích, truy xuất ngược mảng parent để lấy đường đi
     if (cc === gc && cr === gr) {
       const path = [];
-      let cur = key(gc, gr);
-      while (cur) {
-        const [c, r] = cur.split(",").map(Number);
+      let curKey = key(gc, gr);
+      while (curKey) {
+        const [c, r] = curKey.split(",").map(Number);
         path.push({ col: c, row: r });
-        cur = parent.get(cur);
+        curKey = parent.get(curKey);
       }
       return path.reverse();
     }
+
+    // Duyệt qua 4 hướng
     for (const [dc, dr] of dirs) {
-      const nc = cc + dc,
-        nr = cr + dr;
-      const nk = key(nc, nr);
+      const nc = cc + dc;
+      const nr = cr + dr;
+      
+      // Kiểm tra viền sa bàn
       if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
-      if (state.obstacles.has(nk)) continue;
-      if (parent.has(nk)) continue;
-      parent.set(nk, key(cc, cr));
-      q.push([nc, nr]);
+
+      const nk = key(nc, nr);
+      // Chi phí bước đi (Ở đây đồng nhất là 1, bạn có thể chỉnh sửa nếu ô có trọng số)
+      const newCost = dist.get(key(cc, cr)) + 1;
+
+      // Nếu ô chưa được tính toán hoặc tìm được đường mới ngắn hơn đường cũ
+      if (!dist.has(nk) || newCost < dist.get(nk)) {
+        dist.set(nk, newCost);
+        parent.set(nk, key(cc, cr));
+        pq.push({ c: nc, r: nr, cost: newCost });
+      }
     }
   }
-  return null;
+  return null; // Không tìm được đường
 }
 
 /* ═══════════════════════════════════════════
-   CANVAS MAP RENDERER
+   CANVAS MAP RENDERER (Y=0 ở dưới cùng)
 ═══════════════════════════════════════════ */
 const canvas = document.getElementById("mapCanvas");
 const ctx = canvas.getContext("2d");
 canvas.width = COLS * CELL;
 canvas.height = ROWS * CELL;
 
+// Khởi tạo tọa độ render ban đầu
 let renderX = state.agv.col * CELL + CELL / 2;
-let renderY = state.agv.row * CELL + CELL / 2;
+let renderY = (ROWS - 1 - state.agv.row) * CELL + CELL / 2;
 let renderAngle = 0;
 
 function lerp(a, b, t) {
@@ -109,42 +119,27 @@ function drawMap() {
 
   for (let c = 0; c < COLS; c++) {
     for (let r = 0; r < ROWS; r++) {
-      const x = c * CELL,
-        y = r * CELL;
+      const x = c * CELL;
+      const y = (ROWS - 1 - r) * CELL; // Lật ngược trục Y: r=0 nằm ở dưới đáy
       const key = `${c},${r}`;
 
-      if (state.obstacles.has(key)) {
-        ctx.fillStyle = "#172035";
+      if (state.visitedCells.has(key)) {
+        ctx.fillStyle = "rgba(167,139,250,0.05)";
         ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
-        ctx.strokeStyle = "rgba(30,60,90,0.6)";
-        ctx.lineWidth = 1;
-        for (let i = -CELL; i < CELL * 2; i += 10) {
-          ctx.beginPath();
-          ctx.moveTo(x + i, y);
-          ctx.lineTo(x + i + CELL, y + CELL);
-          ctx.stroke();
-        }
-        ctx.strokeStyle = "rgba(40,70,100,0.5)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x + 0.5, y + 0.5, CELL - 1, CELL - 1);
-      } else {
-        if (state.visitedCells.has(key)) {
-          ctx.fillStyle = "rgba(167,139,250,0.05)";
-          ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
-        }
-        ctx.strokeStyle = "rgba(56,189,248,0.1)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, CELL, CELL);
-        ctx.fillStyle = "rgba(56,189,248,0.2)";
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fill();
       }
+      ctx.strokeStyle = "rgba(56,189,248,0.1)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, CELL, CELL);
+      ctx.fillStyle = "rgba(56,189,248,0.2)";
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
-  const hx = state.home.col * CELL,
-    hy = state.home.row * CELL;
+  // Draw Home
+  const hx = state.home.col * CELL;
+  const hy = (ROWS - 1 - state.home.row) * CELL;
   ctx.fillStyle = "rgba(251,191,36,0.08)";
   ctx.fillRect(hx + 1, hy + 1, CELL - 2, CELL - 2);
   ctx.strokeStyle = "rgba(251,191,36,0.35)";
@@ -157,11 +152,12 @@ function drawMap() {
   ctx.textAlign = "center";
   ctx.fillText("⌂", hx + CELL / 2, hy + CELL / 2 + 5);
 
+  // Draw Path
   if (state.path.length > 1) {
     state.path.forEach((p, i) => {
       if (i === 0) return;
-      const px = p.col * CELL,
-        py = p.row * CELL;
+      const px = p.col * CELL;
+      const py = (ROWS - 1 - p.row) * CELL;
       const prog = i / (state.path.length - 1);
       ctx.fillStyle = `rgba(56,189,248,${0.06 + prog * 0.1})`;
       ctx.fillRect(px + 3, py + 3, CELL - 6, CELL - 6);
@@ -175,25 +171,22 @@ function drawMap() {
     ctx.lineJoin = "round";
     ctx.beginPath();
     state.path.forEach((p, i) => {
-      const px = p.col * CELL + CELL / 2,
-        py = p.row * CELL + CELL / 2;
+      const px = p.col * CELL + CELL / 2;
+      const py = (ROWS - 1 - p.row) * CELL + CELL / 2;
       i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
     });
     ctx.stroke();
     ctx.restore();
   }
 
-  if (state.path.length > 0 && !state.obstacleMode) {
+  // Draw Goal
+  if (state.path.length > 0) {
     const g = state.goal;
-    const gx = g.col * CELL,
-      gy = g.row * CELL;
+    const gx = g.col * CELL;
+    const gy = (ROWS - 1 - g.row) * CELL;
     const grad = ctx.createRadialGradient(
-      gx + CELL / 2,
-      gy + CELL / 2,
-      0,
-      gx + CELL / 2,
-      gy + CELL / 2,
-      CELL * 0.7,
+      gx + CELL / 2, gy + CELL / 2, 0,
+      gx + CELL / 2, gy + CELL / 2, CELL * 0.7
     );
     grad.addColorStop(0, "rgba(74,222,128,0.3)");
     grad.addColorStop(1, "transparent");
@@ -208,24 +201,20 @@ function drawMap() {
     ctx.fillText("✦", gx + CELL / 2, gy + CELL / 2 + 6);
   }
 
+  // Cập nhật vị trí render của AGV (lerp mượt mà)
   const targetX = state.agv.col * CELL + CELL / 2;
-  const targetY = state.agv.row * CELL + CELL / 2;
+  const targetY = (ROWS - 1 - state.agv.row) * CELL + CELL / 2;
   renderX = lerp(renderX, targetX, 0.15);
   renderY = lerp(renderY, targetY, 0.15);
 
-  let da = state.agv.angle - renderAngle;
+  // Xử lý góc xoay đảo ngược do Y của canvas vẽ từ trên xuống
+  let targetAngle = -state.agv.angle; 
+  let da = targetAngle - renderAngle;
   if (da > Math.PI) da -= Math.PI * 2;
   if (da < -Math.PI) da += Math.PI * 2;
   renderAngle += da * 0.12;
 
-  const agvGrad = ctx.createRadialGradient(
-    renderX,
-    renderY,
-    0,
-    renderX,
-    renderY,
-    CELL * 0.8,
-  );
+  const agvGrad = ctx.createRadialGradient(renderX, renderY, 0, renderX, renderY, CELL * 0.8);
   agvGrad.addColorStop(0, "rgba(56,189,248,0.25)");
   agvGrad.addColorStop(1, "transparent");
   ctx.fillStyle = agvGrad;
@@ -243,27 +232,15 @@ function drawMap() {
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = "rgba(56,189,248,0.6)";
-  [
-    [-15, -15],
-    [15, -15],
-    [-15, 15],
-    [15, 15],
-  ].forEach(([wx, wy]) => {
-    ctx.beginPath();
-    ctx.arc(wx, wy, 4, 0, Math.PI * 2);
-    ctx.fill();
+  [[-15, -15], [15, -15], [-15, 15], [15, 15]].forEach(([wx, wy]) => {
+    ctx.beginPath(); ctx.arc(wx, wy, 4, 0, Math.PI * 2); ctx.fill();
   });
   ctx.fillStyle = "rgba(56,189,248,0.95)";
   ctx.beginPath();
-  ctx.moveTo(18, 0);
-  ctx.lineTo(9, -7);
-  ctx.lineTo(9, 7);
-  ctx.closePath();
-  ctx.fill();
+  ctx.moveTo(18, 0); ctx.lineTo(9, -7); ctx.lineTo(9, 7);
+  ctx.closePath(); ctx.fill();
   ctx.fillStyle = "#38bdf8";
-  ctx.beginPath();
-  ctx.arc(0, 0, 4, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
   buildAxisLabels();
@@ -272,15 +249,10 @@ function drawMap() {
 
 function roundRectPath(ctx, x, y, w, h, r) {
   ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
 }
 
@@ -292,7 +264,8 @@ function buildAxisLabels() {
   const axX = document.getElementById("axisX");
   axY.innerHTML = "";
   axX.innerHTML = "";
-  for (let r = 0; r < ROWS; r++) {
+  // Xây dựng trục Y từ trên xuống dưới (đỉnh canvas là ROWS - 1, đáy là 0)
+  for (let r = ROWS - 1; r >= 0; r--) {
     const el = document.createElement("span");
     el.className = "axis-label";
     el.textContent = r;
@@ -301,6 +274,7 @@ function buildAxisLabels() {
     el.style.alignItems = "center";
     axY.appendChild(el);
   }
+  // Trục X bình thường từ 0 -> COLS - 1
   for (let c = 0; c < COLS; c++) {
     const el = document.createElement("span");
     el.className = "axis-label";
@@ -311,7 +285,7 @@ function buildAxisLabels() {
 }
 
 /* =========================================================
-   XỬ LÝ CLICK CANVAS (HỢP NHẤT) - SỬA LỖI XUNG ĐỘT
+   XỬ LÝ CLICK CANVAS ĐÃ QUY ĐỔI HỆ TỌA ĐỘ
 ========================================================= */
 canvas.addEventListener("click", (e) => {
   if (state.estop) return;
@@ -321,29 +295,12 @@ canvas.addEventListener("click", (e) => {
   const scaleY = canvas.height / rect.height;
   const mx = (e.clientX - rect.left) * scaleX;
   const my = (e.clientY - rect.top) * scaleY;
+  
   const gc = Math.floor(mx / CELL);
-  const gr = Math.floor(my / CELL);
+  const visual_r = Math.floor(my / CELL);
+  const gr = ROWS - 1 - visual_r; // Chuyển đổi tọa độ Y thực tế
 
   if (gc < 0 || gr < 0 || gc >= COLS || gr >= ROWS) return;
-  const key = `${gc},${gr}`;
-
-  // ĐANG TRONG CHẾ ĐỘ VẬT CẢN (KHÓA TÍNH NĂNG CHỌN ĐƯỜNG)
-  if (state.obstacleMode) {
-    if (state.obstacles.has(key)) {
-      state.obstacles.delete(key);
-      addLog("ok", "[OBS]", `Xóa vật cản tại (${gc},${gr})`);
-    } else {
-      state.obstacles.add(key);
-      addLog("warn", "[OBS]", `Thêm vật cản tại (${gc},${gr})`);
-    }
-    return; // Không chạy code tìm đường bên dưới
-  }
-
-  // ĐANG Ở CHẾ ĐỘ BÌNH THƯỜNG (CHỌN TỌA ĐỘ)
-  if (state.obstacles.has(key)) {
-    addLog("warn", "[MAP]", "Vị trí này đang là vật cản!");
-    return;
-  }
   setGoal(gc, gr, `(${gc},${gr})`);
 });
 
@@ -354,28 +311,18 @@ canvas.addEventListener("mousemove", (e) => {
   const scaleY = canvas.height / rect.height;
   const mx = (e.clientX - rect.left) * scaleX;
   const my = (e.clientY - rect.top) * scaleY;
+  
   const gc = Math.floor(mx / CELL);
-  const gr = Math.floor(my / CELL);
+  const visual_r = Math.floor(my / CELL);
+  const gr = ROWS - 1 - visual_r;
+
   const tt = document.getElementById("goalTooltip");
   const ttText = document.getElementById("goalTooltipText");
 
   if (gc >= 0 && gr >= 0 && gc < COLS && gr < ROWS) {
-    const key = `${gc},${gr}`;
-
-    // Đổi màu tooltip khi đang ở chế độ vẽ vật cản
-    if (state.obstacleMode) {
-      tt.style.borderColor = "rgba(251, 146, 60, 0.5)"; // Cam
-      ttText.style.color = "var(--orange)";
-      ttText.textContent = state.obstacles.has(key)
-        ? `(${gc},${gr}) — Click để XÓA vật cản`
-        : `(${gc},${gr}) — Click để THÊM vật cản`;
-    } else {
-      tt.style.borderColor = "var(--border)"; // Xanh biển
-      ttText.style.color = "var(--cyan)";
-      ttText.textContent = state.obstacles.has(key)
-        ? `(${gc},${gr}) — Vật cản`
-        : `Click → đặt mục tiêu (${gc},${gr})`;
-    }
+    tt.style.borderColor = "var(--border)";
+    ttText.style.color = "var(--cyan)";
+    ttText.textContent = `Click → đặt mục tiêu (${gc},${gr})`;
 
     tt.style.left = e.clientX - rect.left + 14 + "px";
     tt.style.top = e.clientY - rect.top - 10 + "px";
@@ -393,12 +340,18 @@ canvas.addEventListener("mouseleave", () =>
 ═══════════════════════════════════════════ */
 function setGoal(gc, gr, label) {
   if (state.moving) stopMovement();
+  
+  // Lưu lại vị trí hiện tại thành "vị trí cũ" trước khi đi điểm mới
+  state.prevPos = { col: state.agv.col, row: state.agv.row };
+
   state.goal.col = gc;
   state.goal.row = gr;
-  const path = bfs(state.agv.col, state.agv.row, gc, gr);
+  
+  // Thay đổi hàm tìm đường sang Dijkstra
+  const path = dijkstra(state.agv.col, state.agv.row, gc, gr);
 
   if (!path) {
-    addLog("err", "[BFS]", "Không tìm thấy đường đi!");
+    addLog("err", "[DIJKSTRA]", "Không tìm thấy đường đi!");
     return;
   }
   if (path.length === 0) {
@@ -408,9 +361,10 @@ function setGoal(gc, gr, label) {
 
   state.path = path;
   state.pathStep = 0;
-  document.getElementById("pathBadge").textContent =
-    `BFS: ${path.length - 1} steps`;
-  addLog("info", "[BFS]", `Tìm thấy đường → ${label}. Nhấn START để chạy.`);
+  
+  // Update UI & Log
+  document.getElementById("pathBadge").textContent = `Dijkstra: ${path.length - 1} steps`;
+  addLog("info", "[DIJKSTRA]", `Tìm thấy đường → ${label}. Nhấn START để chạy.`);
   simulateMQTT(`/agv/cmd/goal → {x:${gc}, y:${gr}}`);
 }
 
@@ -436,23 +390,10 @@ function startMovement() {
     }
 
     const next = state.path[state.pathStep];
-
-    if (state.obstacles.has(`${next.col},${next.row}`)) {
-      stopMovement();
-      setState("obstacle");
-      addLog(
-        "warn",
-        "[AGV]",
-        `Phát hiện vật cản tại (${next.col},${next.row})!`,
-      );
-      simulateMQTT(`/agv/status → OBSTACLE_DETECTED`);
-      return;
-    }
-
     const dx = next.col - state.agv.col;
     const dy = next.row - state.agv.row;
-    state.agv.angle = Math.atan2(dy, dx);
-
+    
+    state.agv.angle = Math.atan2(dy, dx); // Tính góc Toán học chuẩn
     state.visitedCells.add(`${state.agv.col},${state.agv.row}`);
     state.agv.col = next.col;
     state.agv.row = next.row;
@@ -477,24 +418,14 @@ function stopMovement() {
 ═══════════════════════════════════════════ */
 function setState(s) {
   state.agvStatus = s;
-  const statuses = ["idle", "moving", "obstacle"];
+  const statuses = ["idle", "moving"];
   const ids = [
     { stateEl: "stateIdle", check: "checkIdle", css: "", dot: "dot-idle" },
-    {
-      stateEl: "stateMoving",
-      check: "checkMoving",
-      css: "moving-state",
-      dot: "dot-moving",
-    },
-    {
-      stateEl: "stateObstacle",
-      check: "checkObs",
-      css: "obs-state",
-      dot: "dot-obs",
-    },
+    { stateEl: "stateMoving", check: "checkMoving", css: "moving-state", dot: "dot-moving" },
   ];
   ids.forEach(({ stateEl, check, css, dot }, i) => {
     const el = document.getElementById(stateEl);
+    if(!el) return;
     const chk = document.getElementById(check);
     el.className = "state-item";
     chk.textContent = "—";
@@ -507,20 +438,19 @@ function setState(s) {
     dotEl.className = ("state-dot " + dot).trim();
   });
 
-  const fills = { idle: "20%", moving: "70%", obstacle: "50%" };
+  const fills = { idle: "20%", moving: "70%" };
   const colors = {
     idle: "linear-gradient(to right,#4a6080,#64748b)",
     moving: "linear-gradient(to right,#7dd3fc,#38bdf8)",
-    obstacle: "linear-gradient(to right,#f97316,#fb923c)",
   };
   const fill = document.getElementById("statusBarFill");
-  fill.style.width = fills[s];
-  fill.style.background = colors[s];
+  if(fill) {
+    fill.style.width = fills[s] || "50%";
+    fill.style.background = colors[s] || "red";
+  }
 
   const stText = document.getElementById("statusText");
-  const stDot = document
-    .getElementById("sysStatus")
-    .querySelector(".status-dot");
+  const stDot = document.getElementById("sysStatus").querySelector(".status-dot");
   stDot.className = "status-dot";
   if (s === "idle") {
     stText.textContent = "SYSTEM IDLE";
@@ -532,11 +462,6 @@ function setState(s) {
     stText.className = "status-text moving";
     stDot.classList.add("dot-moving");
   }
-  if (s === "obstacle") {
-    stText.textContent = "OBSTACLE DETECTED";
-    stText.className = "status-text obstacle";
-    stDot.classList.add("dot-orange");
-  }
   if (s === "estop") {
     stText.textContent = "E-STOP ENGAGED";
     stText.className = "status-text estop";
@@ -545,24 +470,19 @@ function setState(s) {
 }
 
 function updateTelemetry() {
-  document.getElementById("dispX").textContent = String(state.agv.col).padStart(
-    2,
-    "0",
-  );
-  document.getElementById("dispY").textContent = String(state.agv.row).padStart(
-    2,
-    "0",
-  );
-  const deg = Math.round(((state.agv.angle * 180) / Math.PI + 360) % 360);
-  document.getElementById("dispTheta").textContent = deg;
-  document.getElementById("velV").textContent = Number(
-    state.velocity.v,
-  ).toFixed(2);
-  document.getElementById("velW").textContent = Number(
-    state.velocity.w,
-  ).toFixed(2);
-  document.getElementById("compassNeedle").style.transform =
-    `rotate(${deg}deg)`;
+  document.getElementById("dispX").textContent = String(state.agv.col).padStart(2, "0");
+  document.getElementById("dispY").textContent = String(state.agv.row).padStart(2, "0");
+  
+  // Tính toán góc hiển thị La bàn (0 độ = Hướng Bắc/UP trên UI)
+  const math_deg = Math.round(((state.agv.angle * 180) / Math.PI + 360) % 360);
+  document.getElementById("dispTheta").textContent = math_deg;
+  
+  // CSS kim la bàn mặc định chỉa lên. Chuyển đổi góc toán học sang góc CSS
+  const css_deg = 90 - math_deg; 
+  document.getElementById("compassNeedle").style.transform = `rotate(${css_deg}deg)`;
+
+  document.getElementById("velV").textContent = Number(state.velocity.v).toFixed(2);
+  document.getElementById("velW").textContent = Number(state.velocity.w).toFixed(2);
   drawArc("arcV", Number(state.velocity.v), 0.4, "#38bdf8");
   drawArc("arcW", Number(state.velocity.w), 0.3, "#a78bfa");
 }
@@ -614,37 +534,6 @@ function drawArc(id, val, max, color) {
   }
 }
 
-/* Battery cells */
-function updateBattery() {
-  const pct = state.battery;
-  document.getElementById("batPct").textContent = pct + "%";
-  document.getElementById("batPct2").textContent = pct + "%";
-  document.getElementById("batFill").style.width = pct + "%";
-  document.getElementById("batProg").style.width = pct + "%";
-  document.getElementById("batVolt").textContent =
-    (9 + pct * 0.026).toFixed(1) + "V";
-  document.getElementById("batTime").textContent =
-    `~${Math.round(pct * 0.54)} min`;
-
-  const cells = document.querySelectorAll(".bat-cell");
-  const lit = Math.round(pct / 20);
-  cells.forEach((c, i) => {
-    c.className = "bat-cell";
-    if (i < lit) {
-      if (pct <= 20) c.classList.add("lit-crit");
-      else if (pct <= 40) c.classList.add("lit-warn");
-      else c.classList.add("lit");
-    }
-  });
-
-  const fill = document.getElementById("batFill");
-  if (pct <= 20)
-    fill.style.background = "linear-gradient(to right,#f87171,#fca5a5)";
-  else if (pct <= 40)
-    fill.style.background = "linear-gradient(to right,#f97316,#fb923c)";
-  else fill.style.background = "linear-gradient(to right,#4ade80,#86efac)";
-}
-
 /* ═══════════════════════════════════════════
    SYSTEM LOG
 ═══════════════════════════════════════════ */
@@ -672,36 +561,43 @@ function clearLog() {
    MAP CONTROLS
 ═══════════════════════════════════════════ */
 function mapAction(action) {
-  // NÚT RESET - Đưa xe về tức thời (0,0)
   if (action === "reset") {
     stopMovement();
     state.path = [];
     state.visitedCells.clear();
-
-    // Đặt state gốc
     state.agv.col = 0;
     state.agv.row = 0;
     state.agv.angle = 0;
-
-    // Đặt tọa độ vẽ tức thời tránh tình trạng xe trượt từ xa về
+    
+    // Reset ngay lập tức tọa độ render về gốc dưới trái
     renderX = 0 * CELL + CELL / 2;
-    renderY = 0 * CELL + CELL / 2;
+    renderY = (ROWS - 1 - 0) * CELL + CELL / 2;
     renderAngle = 0;
 
     setState("idle");
-    document.getElementById("pathBadge").textContent = "BFS: — steps";
-    addLog("info", "[SYS]", "Đã reset AGV về tức thời vị trí (0,0)");
+    document.getElementById("pathBadge").textContent = "Dijkstra: — steps";
+    addLog("info", "[SYS]", "Đã reset AGV về tọa độ (0,0)");
     updateTelemetry();
   }
   if (action === "home") {
     setGoal(state.home.col, state.home.row, "Home Base");
+  }
+  // LOGIC NÚT "VỀ VỊ TRÍ CŨ"
+  if (action === "return") {
+    if (state.prevPos) {
+      addLog("info", "[CMD]", "Đang tính toán trở về vị trí trước đó...");
+      setGoal(state.prevPos.col, state.prevPos.row, "Vị trí cũ");
+      startMovement(); // Tự động kích hoạt chạy luôn cho tiện
+    } else {
+      addLog("warn", "[CMD]", "Chưa có dữ liệu vị trí xuất phát để quay lại!");
+    }
   }
   if (action === "clear") {
     stopMovement();
     state.path = [];
     state.visitedCells.clear();
     setState("idle");
-    document.getElementById("pathBadge").textContent = "BFS: — steps";
+    document.getElementById("pathBadge").textContent = "Dijkstra: — steps";
     addLog("info", "[MAP]", "Đã xóa đường đi và lịch sử");
   }
   if (action === "start") {
@@ -710,25 +606,6 @@ function mapAction(action) {
       startMovement();
     } else {
       addLog("warn", "[CMD]", "Chưa chọn điểm đến hoặc xe đang chạy!");
-    }
-  }
-
-  // TÍNH NĂNG BẬT/TẮT VẬT CẢN (TOGGLE BẰNG TAY)
-  if (action === "obstacle") {
-    state.obstacleMode = !state.obstacleMode; // Đảo trạng thái
-    const btn = document.getElementById("btnObstacle");
-
-    if (state.obstacleMode) {
-      btn.classList.add("mctrl-active"); // Sáng lên
-      addLog(
-        "info",
-        "[MAP]",
-        "ĐÃ BẬT chế độ vật cản. Tính năng chọn đường tạm khóa.",
-      );
-      state.path = []; // Xóa path cũ để nhìn map rõ hơn
-    } else {
-      btn.classList.remove("mctrl-active"); // Tắt đèn
-      addLog("info", "[MAP]", "ĐÃ TẮT chế độ vật cản. Hoạt động bình thường.");
     }
   }
 }
@@ -760,10 +637,8 @@ function toggleEmergency() {
    MQTT SIMULATION
 ═══════════════════════════════════════════ */
 function simulateMQTT(msg) {
-  mqttTxCount++;
-  mqttRxCount += Math.random() > 0.3 ? 1 : 0;
-  const el = document.getElementById("mqttPackets");
-  if (el) el.textContent = `TX: ${mqttTxCount} · RX: ${mqttRxCount}`;
+  state.mqttTx++;
+  state.mqttRx += Math.random() > 0.3 ? 1 : 0;
   addLog("info", "[MQTT]", msg);
 }
 
@@ -785,11 +660,6 @@ function updateNav() {
 
   const lat = 6 + Math.floor(Math.random() * 8);
   document.getElementById("latencyVal").textContent = lat + "ms";
-
-  if (state.moving && state.uptime % 30 === 0 && state.battery > 5) {
-    state.battery -= 1;
-    updateBattery();
-  }
 }
 
 /* ═══════════════════════════════════════════
@@ -799,20 +669,18 @@ function init() {
   drawArc("arcV", 0, 0.4, "#38bdf8");
   drawArc("arcW", 0, 0.3, "#a78bfa");
   updateTelemetry();
-  updateBattery();
   setState("idle");
+
+  renderX = state.agv.col * CELL + CELL / 2;
+  renderY = (ROWS - 1 - state.agv.row) * CELL + CELL / 2;
 
   drawMap();
   setInterval(updateNav, 1000);
 
   addLog("ok", "[SYS]", "AGV Dashboard initialized");
   addLog("ok", "[ROS]", "ROS2 Humble node connected");
-  addLog("info", "[AGV]", "Vị trí: (0,0) — Home Base");
-  addLog(
-    "info",
-    "[SYS]",
-    "Sẵn sàng nhận lệnh... Click lên Map rồi nhấn START.",
-  );
+  addLog("info", "[AGV]", "Vị trí ban đầu: (0,0) — Góc dưới trái");
+  addLog("info", "[SYS]", "Sẵn sàng nhận lệnh... Click lên Map rồi nhấn START.");
 }
 
 init();

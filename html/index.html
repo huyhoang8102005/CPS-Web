@@ -20,8 +20,7 @@
     <nav class="navbar" id="navbar">
       <div class="nav-logo">
         <span class="logo-bracket">[</span>
-        <span class="logo-text">CPS</span>
-        <span class="logo-sub">_car</span>
+        <span class="logo-text">4HYV</span>
         <span class="logo-bracket">]</span>
       </div>
       <ul class="nav-links">
@@ -491,71 +490,6 @@
             <li><span class="check">◆</span> Phản hồi trạng thái tức thì</li>
           </ul>
           <div class="card-glow"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ══════════════ DIGITAL TWIN DEMO ══════════════ -->
-    <section class="demo-section" id="demo">
-      <div class="demo-container">
-        <div class="demo-info reveal">
-          <span class="section-tag">// DIGITAL TWIN</span>
-          <h2>Bản sao số <span class="accent-text">Real-time</span></h2>
-          <p>
-            Toàn bộ không gian vật lý 2m × 3m được đồng bộ lên nền tảng web. Mỗi
-            thay đổi vị trí, góc quay hay phát hiện vật cản đều được phản chiếu
-            tức thì trên dashboard.
-          </p>
-          <div class="demo-stats">
-            <div class="demo-stat">
-              <span class="ds-val">~10ms</span>
-              <span class="ds-label">Latency MQTT</span>
-            </div>
-            <div class="demo-stat">
-              <span class="ds-val">BFS</span>
-              <span class="ds-label">Pathfinding Algo</span>
-            </div>
-            <div class="demo-stat">
-              <span class="ds-val">150</span>
-              <span class="ds-label">Grid Cells</span>
-            </div>
-          </div>
-          <div class="demo-messages" id="demoMessages">
-            <div class="msg msg-user">Hãy đi đến Gian hàng A</div>
-            <div class="msg msg-bot">
-              <span class="bot-tag">AGV_AI</span> Đã nhận lệnh, đang tính toán
-              đường đi BFS...
-            </div>
-            <div class="msg msg-bot">
-              <span class="bot-tag">AGV_AI</span> Tìm thấy đường đi — 12 bước.
-              Đang di chuyển...
-            </div>
-            <div class="msg msg-system">◈ STATUS: MOVING → (x:4, y:9)</div>
-            <div class="msg msg-bot">
-              <span class="bot-tag">AGV_AI</span> Đã đến nơi an toàn! ✓
-            </div>
-          </div>
-        </div>
-        <div class="demo-visual reveal" data-delay="200">
-          <div class="mini-grid-wrap">
-            <div class="grid-label-x">← X (15 cols) →</div>
-            <div class="grid-label-y">Y (10 rows)</div>
-            <canvas id="miniGrid" width="450" height="300"></canvas>
-            <div class="grid-legend">
-              <span class="leg-item"
-                ><span class="leg-dot leg-agv"></span> AGV</span
-              >
-              <span class="leg-item"
-                ><span class="leg-dot leg-path"></span> BFS Path</span
-              >
-              <span class="leg-item"
-                ><span class="leg-dot leg-goal"></span> Goal</span
-              >
-              <span class="leg-item"
-                ><span class="leg-dot leg-obs"></span> Obstacle</span
-              >
-            </div>
-          </div>
         </div>
       </div>
     </section>

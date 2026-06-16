@@ -18,8 +18,8 @@
     <header class="topnav">
       <div class="nav-left">
         <a href="index.html" class="nav-logo">
-          <span class="logo-br">[</span><span class="logo-t">CPS</span
-          ><span class="logo-s">_car</span><span class="logo-br">]</span>
+          <span class="logo-br">[ </span><span class="logo-t">4HYV</span
+          ><span class="logo-br"> ]</span>
         </a>
         <div class="nav-divider"></div>
         <span class="nav-page">CONTROL DASHBOARD</span>
@@ -41,13 +41,6 @@
         <div class="nav-stat">
           <span class="ns-label">UPTIME</span>
           <span class="ns-val" id="uptimeVal">00:00:00</span>
-        </div>
-        <div class="nav-battery">
-          <span class="bat-label" id="batPct">78%</span>
-          <div class="bat-shell">
-            <div class="bat-fill" id="batFill" style="width: 78%"></div>
-          </div>
-          <span class="bat-tip"></span>
         </div>
         <button
           class="nav-btn"
@@ -154,38 +147,9 @@
               <span class="state-label">MOVING</span>
               <span class="state-check" id="checkMoving">✓</span>
             </div>
-            <div class="state-item" id="stateObstacle">
-              <div class="state-dot dot-obs"></div>
-              <span class="state-label">OBSTACLE DETECTED</span>
-              <span class="state-check" id="checkObs">—</span>
-            </div>
           </div>
           <div class="status-bar-wrap">
             <div class="status-bar-fill" id="statusBarFill"></div>
-          </div>
-        </div>
-
-        <div class="widget">
-          <div class="widget-header">
-            <span class="widget-icon">⬤</span>
-            <span class="widget-title">LIPO BATTERY</span>
-            <span class="widget-val-inline" id="batPct2">78%</span>
-          </div>
-          <div class="bat-meter">
-            <div class="bat-cells">
-              <div class="bat-cell" id="bc1"></div>
-              <div class="bat-cell" id="bc2"></div>
-              <div class="bat-cell" id="bc3"></div>
-              <div class="bat-cell" id="bc4"></div>
-              <div class="bat-cell" id="bc5"></div>
-            </div>
-            <div class="bat-track">
-              <div class="bat-prog" id="batProg" style="width: 78%"></div>
-            </div>
-            <div class="bat-info">
-              <span id="batVolt">11.4V</span>
-              <span id="batTime">~42 min</span>
-            </div>
           </div>
         </div>
 
@@ -204,7 +168,7 @@
           <div class="map-info">
             <span class="map-badge">10 × 15 GRID</span>
             <span class="map-badge">2m × 3m ARENA</span>
-            <span class="map-badge" id="pathBadge">BFS: — steps</span>
+            <span class="map-badge" id="pathBadge">Dijkstra: — steps</span>
           </div>
           <div class="map-controls">
             <button
@@ -212,7 +176,7 @@
               onclick="mapAction('reset')"
               title="Dịch chuyển tức thời về tọa độ (0,0)"
             >
-              ⟲ RESET (0,0)
+              ⟲ (0,0)
             </button>
             <button
               class="mctrl-btn"
@@ -220,6 +184,13 @@
               title="Tìm đường về Home"
             >
               HOME
+            </button>
+            <button
+              class="mctrl-btn"
+              onclick="mapAction('return')"
+              title="Quay lại điểm xuất phát trước đó"
+            >
+              ↩ VỀ VỊ TRÍ CŨ
             </button>
             <button
               class="mctrl-btn"
@@ -234,14 +205,6 @@
               title="Bắt đầu chạy"
             >
               ▶ START AGV
-            </button>
-            <button
-              class="mctrl-btn"
-              id="btnObstacle"
-              onclick="mapAction('obstacle')"
-              title="Bật/Tắt chế độ thêm vật cản"
-            >
-              ⬛ OBSTACLE
             </button>
           </div>
         </div>
@@ -262,16 +225,13 @@
         <div class="map-legend">
           <div class="leg-item"><span class="leg-swatch sw-agv"></span>AGV</div>
           <div class="leg-item">
-            <span class="leg-swatch sw-path"></span>BFS Path
+            <span class="leg-swatch sw-path"></span>Dijkstra Path
           </div>
           <div class="leg-item">
             <span class="leg-swatch sw-goal"></span>Goal
           </div>
           <div class="leg-item">
             <span class="leg-swatch sw-home"></span>Home
-          </div>
-          <div class="leg-item">
-            <span class="leg-swatch sw-obs"></span>Obstacle
           </div>
           <div class="leg-item">
             <span class="leg-swatch sw-visited"></span>Visited
