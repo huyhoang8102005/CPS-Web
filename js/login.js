@@ -6,12 +6,16 @@ import {
   signInWithPopup,
 } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 // Import thêm các hàm của Firestore
+// Import thêm các hàm của Firestore
 import {
   doc,
   setDoc,
   getDoc,
   collection,
   addDoc,
+  query, // Thêm hàm này
+  where, // Thêm hàm này
+  getDocs, // Thêm hàm này
 } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
 // IMPORT HÀM GIAO DIỆN TỪ FILE UI.JS
@@ -100,6 +104,20 @@ async function handleRegister(e) {
   btn.classList.add("loading");
 
   try {
+    const q = query(
+      collection(db, "pending_requests"),
+      where("email", "==", email.value),
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      // Nếu querySnapshot không rỗng, tức là email đã có người đăng ký
+      btn.classList.remove("loading");
+      errRegEmail.textContent =
+        "Email này đã được gửi đi để xác nhận, vui lòng đợi Admin duyệt.";
+      email.classList.add("has-error");
+      return; // Dừng tiến trình đăng ký lại
+    }
     // Bước 1: Chỉ lưu thông tin vào collection "pending_requests"
     await addDoc(collection(db, "pending_requests"), {
       firstName: firstName.value,
@@ -112,11 +130,11 @@ async function handleRegister(e) {
 
     // Bước 2: Gửi email cho Admin qua EmailJS
     const templateParams = {
-      to_email: "tonghuuhuyhoang2005@gmail.com", // Thay bằng email thật của admin
-      request_name: `${firstName.value} ${lastName.value}`,
-      request_email: email.value,
-      request_role: role.value,
-      system_name: "AGV_CTRL",
+      name: `${firstName.value} ${lastName.value}`, // Khớp với {{name}} ở header
+      from_name: `${firstName.value} ${lastName.value}`, // Khớp với {{from_name}}
+      from_email: email.value, // Khớp với {{from_email}}
+      message: `Yêu cầu cấp quyền truy cập với vai trò: ${role.value}`, // Khớp với {{message}}
+      to_email: "tonghuuhuyhoang2005@gmail.com", // Giữ nguyên email người nhận
     };
 
     // Điền Service ID và Template ID bạn tạo trên hệ thống EmailJS
@@ -128,6 +146,7 @@ async function handleRegister(e) {
     showSuccess(
       "REQUEST SENT",
       "Yêu cầu tạo tài khoản đã được gửi tới Admin. Vui lòng chờ phê duyệt.",
+      true,
     );
 
     // Reset form

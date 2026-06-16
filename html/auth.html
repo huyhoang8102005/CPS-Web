@@ -278,48 +278,6 @@
               </div>
 
               <div class="field">
-                <label class="field-label" for="regPass">
-                  <span class="field-icon">◉</span> MẬT KHẨU
-                </label>
-                <div class="field-wrap">
-                  <input
-                    type="password"
-                    id="regPass"
-                    class="field-input"
-                    placeholder="••••••••••••"
-                    oninput="checkStrength(this.value)"
-                  />
-                  <button
-                    type="button"
-                    class="eye-btn"
-                    onclick="togglePass('regPass', this)"
-                  >
-                    <svg class="eye-icon" viewBox="0 0 24 24" fill="none">
-                      <path
-                        d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      />
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="3"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                      />
-                    </svg>
-                  </button>
-                  <div class="field-line"></div>
-                  <div class="field-scan"></div>
-                </div>
-                <!-- Strength meter -->
-                <div class="strength-meter">
-                  <div class="strength-bar" id="strengthBar"></div>
-                </div>
-                <span class="strength-label" id="strengthLabel"></span>
-              </div>
-
-              <div class="field">
                 <label class="field-label" for="regRole">
                   <span class="field-icon">◉</span> VAI TRÒ
                 </label>
@@ -361,9 +319,26 @@
           <div class="success-sub" id="successSub">
             Đang khởi tạo phiên làm việc...
           </div>
-          <div class="success-bar">
+          <!-- Thêm id để dễ ẩn/hiện -->
+          <div class="success-bar" id="successBarContainer">
             <div class="success-fill" id="successFill"></div>
           </div>
+          <!-- Thêm nút Quay lại (mặc định ẩn) -->
+          <button
+            type="button"
+            class="submit-btn"
+            id="successCloseBtn"
+            style="
+              display: none;
+              margin-top: 25px;
+              width: auto;
+              padding: 12px 40px;
+              border-radius: 4px;
+            "
+            onclick="closeSuccessOverlay()"
+          >
+            <span class="btn-text">QUAY LẠI</span>
+          </button>
         </div>
 
         <!-- Corner decorations -->
