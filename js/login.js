@@ -21,8 +21,6 @@ import {
 // IMPORT HÀM GIAO DIỆN TỪ FILE UI.JS
 import { showSuccess } from "./auth_ui.js";
 
-// Khởi tạo Google Provider
-const googleProvider = new GoogleAuthProvider();
 
 // 1. XỬ LÝ ĐĂNG NHẬP (Email/Pass)
 async function handleLogin(e) {
@@ -158,44 +156,7 @@ async function handleRegister(e) {
   }
 }
 
-// 3. XỬ LÝ ĐĂNG NHẬP BẰNG GOOGLE & LƯU VÀO FIRESTORE (NẾU MỚI)
-async function handleGoogleLogin() {
-  try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-
-    // Kiểm tra xem user này đã có profile trong Firestore chưa
-    const userRef = doc(db, "users", user.uid);
-    const userSnap = await getDoc(userRef);
-
-    if (!userSnap.exists()) {
-      // Nếu chưa có (đăng nhập lần đầu), tạo profile với vai trò mặc định
-      await setDoc(userRef, {
-        firstName: user.displayName,
-        lastName: "",
-        email: user.email,
-        role: "operator",
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    showSuccess(
-      "ACCESS GRANTED",
-      `Xin chào ${user.displayName}, đang thiết lập phiên AGV...`,
-    );
-
-    // THÊM ĐOẠN NÀY: Chuyển hướng sau 1.5 giây
-    setTimeout(() => {
-      window.location.href = "dashboard.html"; // Thay 'dashboard.html' bằng đường dẫn thực tế của bạn
-    }, 1500);
-  } catch (error) {
-    if (error.code !== "auth/popup-closed-by-user") {
-      alert("Lỗi đăng nhập Google: " + error.message);
-    }
-  }
-}
 
 // --- GẮN VÀO WINDOW ĐỂ FORM GỌI ĐƯỢC ---
 window.handleLogin = handleLogin;
 window.handleRegister = handleRegister;
-window.handleGoogleLogin = handleGoogleLogin;
