@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
 } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 // Import thêm các hàm của Firestore
 // Import thêm các hàm của Firestore
@@ -52,14 +53,65 @@ async function handleLogin(e) {
   btn.classList.add("loading");
 
   try {
-    await signInWithEmailAndPassword(auth, email.value, pass.value);
+    const credential = await signInWithEmailAndPassword(
+      auth,
+      email.value.trim(),
+      pass.value,
+    );
+
+    console.log("AUTH UID:", credential.user.uid);
+    console.log("AUTH EMAIL:", credential.user.email);
+
+    // Ưu tiên cách đúng: document ID trong users trùng với UID của Firebase Auth
+    let userRef = doc(db, "users", credential.user.uid);
+    let userSnap = await getDoc(userRef);
+
+    // Fallback: nếu lỡ tạo document ID sai, thử tìm theo email để không bị kẹt tài khoản admin
+    if (!userSnap.exists()) {
+      const emailQuery = query(
+        collection(db, "users"),
+        where("email", "==", credential.user.email || email.value.trim()),
+      );
+      const emailSnapshot = await getDocs(emailQuery);
+
+      if (!emailSnapshot.empty) {
+        userSnap = emailSnapshot.docs[0];
+      }
+    }
+
+    if (!userSnap.exists()) {
+      await signOut(auth);
+      btn.classList.remove("loading");
+      errPass.textContent = "Tài khoản chưa được cấp quyền truy cập.";
+      pass.classList.add("has-error");
+      return;
+    }
+
+    const userData = userSnap.data();
+    const role = String(userData.role || "operator").toLowerCase();
+    const status = String(userData.status || "active").toLowerCase();
+
+    if (status !== "active") {
+      await signOut(auth);
+      btn.classList.remove("loading");
+      errPass.textContent = "Tài khoản của bạn chưa được kích hoạt.";
+      pass.classList.add("has-error");
+      return;
+    }
+
     btn.classList.remove("loading");
 
-    // Gọi hàm từ ui.js
-    showSuccess("ACCESS GRANTED", "Đang thiết lập phiên điều khiển...");
-    setTimeout(() => {
-      window.location.href = "dashboard.html"; // Thay 'dashboard.html' bằng đường dẫn thực tế của bạn
-    }, 1500);
+    if (role === "admin") {
+      showSuccess("ĐĂNG NHẬP THÀNH CÔNG", "Đang chuyển đến trang quản trị...");
+      setTimeout(() => {
+        window.location.href = "admin_overview.html";
+      }, 1200);
+    } else {
+      showSuccess("ĐĂNG NHẬP THÀNH CÔNG", "Đang chuyển đến bảng điều khiển...");
+      setTimeout(() => {
+        window.location.href = "dashboard.html";
+      }, 1200);
+    }
   } catch (error) {
     btn.classList.remove("loading");
     const code = error.code;

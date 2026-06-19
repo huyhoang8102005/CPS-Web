@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AGV Control Center — Pending Requests</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/dashboard.css" />
+    <link rel="stylesheet" href="../css/admin.css" />
+  </head>
+  <body class="admin-page">
+    <div class="scanlines"></div>
+
+    <header class="topnav">
+      <div class="nav-left">
+        <a href="index.html" class="nav-logo">
+          <span class="logo-br">[ </span><span class="logo-t">4HYV</span
+          ><span class="logo-br"> ]</span>
+        </a>
+        <div class="nav-divider"></div>
+        <span class="nav-page">PENDING REQUESTS</span>
+      </div>
+
+      <div class="nav-center">
+        <div class="sys-status">
+          <span class="status-dot dot-orange"></span>
+          <span class="status-text obstacle">ADMIN REVIEW</span>
+        </div>
+        <div class="nav-time" id="navTime">——</div>
+      </div>
+
+      <div class="nav-right admin-nav">
+        <a class="admin-nav-pill" href="admin_overview.html">THỐNG KÊ</a>
+        <a class="admin-nav-pill active" href="admin_requests.html">DUYỆT TK</a>
+        <button class="admin-link-btn danger" id="logoutBtn" type="button">
+          ĐĂNG XUẤT
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-shell" id="adminRoot">
+      <section class="admin-hero requests-hero">
+        <div class="hero-copy">
+          <span class="section-kicker orange">ACCOUNT APPROVAL</span>
+          <h1>Phê duyệt tài khoản</h1>
+          <p>
+            Kiểm tra thông tin đăng ký, chọn quyền truy cập phù hợp và cấp tài
+            khoản cho người dùng chỉ trong vài thao tác.
+          </p>
+          <div class="hero-feature-row" aria-label="Quy trình duyệt tài khoản">
+            <span class="hero-feature"><b>01</b> kiểm tra yêu cầu</span>
+            <span class="hero-feature"><b>02</b> chọn vai trò</span>
+            <span class="hero-feature"><b>03</b> cấp tài khoản</span>
+          </div>
+        </div>
+        <div class="hero-profile-card warning">
+          <div class="profile-topline">
+            <span class="profile-dot orange"></span>
+            <span>Hàng chờ duyệt</span>
+          </div>
+          <div class="profile-name" id="pendingTotalHero">— yêu cầu</div>
+          <div class="profile-email" data-admin-email>—</div>
+          <div class="profile-actions">
+            <a href="#requestList">Xem danh sách</a>
+            <a href="admin_overview.html">Thống kê</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="metric-grid">
+        <article class="metric-card">
+          <div class="metric-label">PENDING</div>
+          <div class="metric-value" id="pendingCount">—</div>
+          <div class="metric-sub">Yêu cầu chưa cấp tài khoản</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">OPERATOR REQUEST</div>
+          <div class="metric-value" id="operatorCount">—</div>
+          <div class="metric-sub">Yêu cầu role operator</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">ADMIN REQUEST</div>
+          <div class="metric-value" id="adminReqCount">—</div>
+          <div class="metric-sub">Yêu cầu role admin</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">LAST UPDATE</div>
+          <div class="metric-value" id="lastUpdate" style="font-size: 1.2rem">
+            —
+          </div>
+          <div class="metric-sub">Realtime từ Firestore</div>
+        </article>
+      </section>
+
+      <section class="admin-card">
+        <div class="toolbar-row">
+          <div>
+            <span class="card-title">Danh sách yêu cầu</span>
+            <span class="card-desc">
+              Nhập mật khẩu và chọn role để cấp tài khoản cho user.
+            </span>
+          </div>
+          <label class="search-box">
+            <span>⌕</span>
+            <input
+              id="requestSearch"
+              type="search"
+              placeholder="Tìm theo tên hoặc email..."
+            />
+          </label>
+        </div>
+
+        <div id="requestList" class="request-list">
+          <div class="loading-state" style="grid-column: 1 / -1">
+            <strong>Đang tải yêu cầu...</strong>
+            Kết nối tới collection pending_requests.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="../js/admin_requests.js"></script>
+  </body>
+</html>

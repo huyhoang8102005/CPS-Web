@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AGV Control Center — Admin Overview</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Share+Tech+Mono&family=DM+Sans:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../css/dashboard.css" />
+    <link rel="stylesheet" href="../css/admin.css" />
+  </head>
+  <body class="admin-page">
+    <div class="scanlines"></div>
+
+    <header class="topnav">
+      <div class="nav-left">
+        <a href="index.html" class="nav-logo">
+          <span class="logo-br">[ </span><span class="logo-t">4HYV</span
+          ><span class="logo-br"> ]</span>
+        </a>
+        <div class="nav-divider"></div>
+        <span class="nav-page">ADMIN OVERVIEW</span>
+      </div>
+
+      <div class="nav-center">
+        <div class="sys-status">
+          <span class="status-dot dot-green"></span>
+          <span class="status-text">ADMIN ONLINE</span>
+        </div>
+        <div class="nav-time" id="navTime">——</div>
+      </div>
+
+      <div class="nav-right admin-nav">
+        <a class="admin-nav-pill active" href="admin_overview.html">THỐNG KÊ</a>
+        <a class="admin-nav-pill" href="admin_requests.html">DUYỆT TK</a>
+        <button class="admin-link-btn danger" id="logoutBtn" type="button">
+          ĐĂNG XUẤT
+        </button>
+      </div>
+    </header>
+
+    <main class="admin-shell" id="adminRoot">
+      <section class="admin-hero overview-hero">
+        <div class="hero-copy">
+          <span class="section-kicker">ADMIN CONTROL CENTER</span>
+          <h1>4HYV - ADMIN</h1>
+          <p>
+            Theo dõi tăng trưởng người dùng, kiểm tra vai trò và xử lý các yêu
+            cầu đăng ký mới trong một màn hình quản trị gọn gàng.
+          </p>
+          <div class="hero-feature-row" aria-label="Tính năng chính">
+            <span class="hero-feature"><b>Realtime</b> cập nhật dữ liệu</span>
+            <span class="hero-feature"><b>Role</b> phân quyền tài khoản</span>
+            <span class="hero-feature"><b>Approval</b> duyệt đăng ký</span>
+          </div>
+        </div>
+        <div class="hero-profile-card">
+          <div class="profile-topline">
+            <span class="profile-dot"></span>
+            <span>Phiên quản trị</span>
+          </div>
+          <div class="profile-name" data-admin-name>Đang kiểm tra...</div>
+          <div class="profile-email" data-admin-email>—</div>
+          <div class="profile-actions">
+            <a href="admin_requests.html">Xử lý yêu cầu</a>
+            <a href="#latestUsersBody">Xem user mới</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="metric-grid">
+        <article class="metric-card">
+          <div class="metric-label">TOTAL USERS</div>
+          <div class="metric-value" id="totalUsers">—</div>
+          <div class="metric-sub">Tổng tài khoản trong collection users</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">NEW THIS MONTH</div>
+          <div class="metric-value" id="newThisMonth">—</div>
+          <div class="metric-sub" id="monthLabel">Tháng hiện tại</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">PENDING REQUESTS</div>
+          <div class="metric-value" id="pendingCount">—</div>
+          <div class="metric-sub">Yêu cầu tài khoản chưa duyệt</div>
+        </article>
+        <article class="metric-card">
+          <div class="metric-label">ADMIN USERS</div>
+          <div class="metric-value" id="adminCount">—</div>
+          <div class="metric-sub">Tài khoản có role admin</div>
+        </article>
+      </section>
+
+      <section class="chart-grid">
+        <article class="chart-card">
+          <div class="card-head">
+            <div>
+              <span class="card-title">Người dùng mới trong tháng</span>
+              <span class="card-desc">Biểu đồ cột theo ngày tạo tài khoản</span>
+            </div>
+            <span class="card-chip" id="chartMonthChip">MONTH</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas
+              id="newUsersChart"
+              aria-label="Biểu đồ người dùng mới"
+            ></canvas>
+          </div>
+        </article>
+
+        <article class="chart-card">
+          <div class="card-head">
+            <div>
+              <span class="card-title">Cơ cấu user hệ thống</span>
+              <span class="card-desc"
+                >Tổng user đang có, phân theo vai trò</span
+              >
+            </div>
+            <span class="card-chip">ROLE</span>
+          </div>
+          <div class="chart-wrap small">
+            <canvas id="roleChart" aria-label="Biểu đồ user theo role"></canvas>
+          </div>
+        </article>
+      </section>
+
+      <section class="admin-card">
+        <div class="card-head">
+          <div>
+            <span class="card-title">User mới nhất</span>
+            <span class="card-desc"
+              >8 tài khoản được tạo gần nhất trong collection users</span
+            >
+          </div>
+          <a class="admin-nav-pill" href="admin_requests.html"
+            >Xem yêu cầu chờ</a
+          >
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Họ tên</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Ngày tạo</th>
+              </tr>
+            </thead>
+            <tbody id="latestUsersBody">
+              <tr>
+                <td colspan="5">Đang tải dữ liệu...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="../js/admin_overview.js"></script>
+  </body>
+</html>

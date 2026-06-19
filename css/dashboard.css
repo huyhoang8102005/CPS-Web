@@ -897,6 +897,7 @@ canvas#mapCanvas {
   flex-wrap: wrap;
   flex-shrink: 0;
   margin-top: 20px;
+  padding: 10px 10px;
 }
 .leg-item {
   display: flex;
@@ -1025,10 +1026,17 @@ html, body {
 }
 .map-badge { color: #0369a1; }
 .mctrl-btn { color: #0369a1; }
-.mctrl-btn:hover, .mctrl-btn.mctrl-active {
-  color: #ffffff;
-  background: linear-gradient(135deg, #0ea5e9, #22c55e) !important;
-  border-color: transparent !important;
+/* Fix lỗi màu nút START AGV */
+.mctrl-btn.mctrl-active {
+    background-color: #0ea5e9 !important;
+    color: #ffffff !important;
+    border: none !important;
+    font-weight: 700 !important;
+    text-shadow: none !important;
+}
+
+.mctrl-btn.mctrl-active:hover {
+    background-color: #0284c7 !important;
 }
 
 .nav-btn {
@@ -1043,3 +1051,295 @@ html, body {
 .log-ts, .log-tag { color: #64748b; }
 .sw-obs { background: #cbd5e1; border-color: rgba(100, 116, 139, 0.38); }
 .sw-visited { background: #ede9fe; border-color: rgba(124, 58, 237, 0.24); }
+
+/* Căn giữa toàn bộ thanh toolbar */
+.map-toolbar {
+    display: flex !important;
+    align-items: center !important;      /* Ép căn giữa theo chiều dọc */
+    justify-content: space-between !important; /* Đẩy 2 cụm sang 2 bên trái/phải */
+    padding: 12px 20px !important;       /* Cân đối lại khoảng cách trên/dưới và 2 bên */
+}
+
+/* Căn giữa các badge bên trái */
+.map-info {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;                /* Khoảng cách giữa các badge */
+    margin: 0 !important;
+}
+
+/* Căn giữa các nút bấm bên phải */
+.map-controls {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;                /* Khoảng cách giữa các nút */
+    margin: 0 !important;
+}
+
+/* Đảm bảo bản thân các nút và badge không bị dư margin/padding thừa */
+.map-badge, .mctrl-btn {
+    margin: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+
+/* ═══════════════════════════════════════════════
+   DASHBOARD LOGOUT BUTTON — added by ChatGPT
+═══════════════════════════════════════════════ */
+.nav-logout-btn {
+  background: rgba(248, 113, 113, 0.10) !important;
+  border: 1px solid rgba(248, 113, 113, 0.34) !important;
+  color: var(--red) !important;
+  min-width: 112px;
+  text-align: center;
+}
+
+.nav-logout-btn:hover {
+  background: rgba(248, 113, 113, 0.18) !important;
+  border-color: rgba(248, 113, 113, 0.55) !important;
+  box-shadow: var(--glow-r) !important;
+}
+
+.nav-logout-btn.logging-out {
+  pointer-events: none;
+  opacity: 0.68;
+}
+
+@media (max-width: 1100px) {
+  .nav-right {
+    gap: 10px;
+  }
+
+  .nav-logout-btn {
+    min-width: auto;
+    padding-inline: 12px;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════
+   LOGOUT CONFIRM MODAL — integrated dashboard.js
+═══════════════════════════════════════════════ */
+.logout-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.logout-modal.show {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.logout-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 52% 34%, rgba(14, 165, 233, 0.18), transparent 34%),
+    rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(12px);
+}
+
+.logout-modal__panel {
+  position: relative;
+  width: min(500px, 100%);
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.10), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 251, 255, 0.96));
+  box-shadow:
+    0 28px 90px rgba(15, 23, 42, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  padding: 34px;
+  font-family: var(--font-b);
+  transform: translateY(16px) scale(0.96);
+  transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.logout-modal.show .logout-modal__panel {
+  transform: translateY(0) scale(1);
+}
+
+.logout-modal__panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0ea5e9, #22c55e, #ef4444);
+}
+
+.logout-modal__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(14, 165, 233, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #64748b;
+  font-family: var(--font-b);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.logout-modal__close:hover {
+  color: #0f172a;
+  border-color: rgba(14, 165, 233, 0.34);
+  transform: translateY(-1px);
+}
+
+.logout-modal__icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  margin-bottom: 22px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.11), rgba(14, 165, 233, 0.10));
+  border: 1px solid rgba(239, 68, 68, 0.16);
+  color: #dc2626;
+  font-family: var(--font-b);
+  font-size: 1.85rem;
+  font-weight: 800;
+  box-shadow: 0 16px 32px rgba(220, 38, 38, 0.10);
+}
+
+.logout-modal__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+  font-family: var(--font-b);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #0284c7;
+}
+
+.logout-modal__kicker::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 14px rgba(220, 38, 38, 0.48);
+}
+
+.logout-modal__content h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-b);
+  font-size: clamp(1.7rem, 4.2vw, 2.35rem);
+  line-height: 1.08;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.045em;
+}
+
+.logout-modal__content p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.7;
+  font-family: var(--font-b);
+  font-size: 1.02rem;
+  font-weight: 500;
+}
+
+.logout-modal__error {
+  min-height: 22px;
+  margin-top: 12px !important;
+  color: #dc2626 !important;
+  font-family: var(--font-b);
+  font-size: 0.92rem !important;
+  font-weight: 700;
+}
+
+.logout-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.logout-modal__btn {
+  min-width: 128px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  padding: 13px 20px;
+  font-family: var(--font-b);
+  font-size: 0.96rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.logout-modal__btn.ghost {
+  background: rgba(14, 165, 233, 0.08);
+  border-color: rgba(14, 165, 233, 0.20);
+  color: #0369a1;
+}
+
+.logout-modal__btn.ghost:hover {
+  background: rgba(14, 165, 233, 0.14);
+  transform: translateY(-1px);
+}
+
+.logout-modal__btn.danger {
+  background: linear-gradient(135deg, #fb7185, #dc2626);
+  color: white;
+  box-shadow: 0 16px 32px rgba(220, 38, 38, 0.24);
+}
+
+.logout-modal__btn.danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 38px rgba(220, 38, 38, 0.30);
+}
+
+.logout-modal__btn:disabled,
+.nav-logout-btn:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.nav-logout-btn {
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.28);
+  color: #dc2626;
+}
+
+.nav-logout-btn:hover {
+  background: rgba(248, 113, 113, 0.16);
+}
+
+@media (max-width: 640px) {
+  .logout-modal__panel {
+    padding: 26px;
+    border-radius: 20px;
+  }
+
+  .logout-modal__content h2 {
+    font-size: 1.65rem;
+  }
+
+  .logout-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .logout-modal__btn {
+    width: 100%;
+  }
+}

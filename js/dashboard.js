@@ -542,6 +542,7 @@ const startTime = Date.now();
 
 function addLog(type, tag, msg) {
   const feed = document.getElementById("logFeed");
+  if (!feed) return;
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
   const ts = String(elapsed).padStart(5, "0") + "s";
   const el = document.createElement("div");
@@ -642,6 +643,118 @@ function simulateMQTT(msg) {
   addLog("info", "[MQTT]", msg);
 }
 
+
+/* ═══════════════════════════════════════════
+   AUTH: DASHBOARD LOGOUT MODAL
+   Tích hợp trực tiếp trong dashboard.js, không dùng alert/confirm
+═══════════════════════════════════════════ */
+function openLogoutModal() {
+  const modal = document.getElementById("logoutModal");
+  const error = document.getElementById("logoutError");
+  const confirmBtn = document.getElementById("logoutConfirmBtn");
+
+  if (!modal) return;
+  if (error) error.textContent = "";
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = "ĐĂNG XUẤT";
+  }
+
+  modal.classList.add("show");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+
+  setTimeout(() => confirmBtn?.focus(), 80);
+}
+
+function closeLogoutModal() {
+  const modal = document.getElementById("logoutModal");
+  if (!modal) return;
+
+  modal.classList.remove("show");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+async function confirmDashboardLogout() {
+  const logoutBtn = document.getElementById("logoutBtn");
+  const confirmBtn = document.getElementById("logoutConfirmBtn");
+  const cancelBtn = document.getElementById("logoutCancelBtn");
+  const closeBtn = document.getElementById("logoutCancelX");
+  const error = document.getElementById("logoutError");
+
+  const oldNavText = logoutBtn ? logoutBtn.textContent : "ĐĂNG XUẤT";
+
+  if (error) error.textContent = "";
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "ĐANG XỬ LÝ...";
+  }
+  if (cancelBtn) cancelBtn.disabled = true;
+  if (closeBtn) closeBtn.disabled = true;
+  if (logoutBtn) {
+    logoutBtn.disabled = true;
+    logoutBtn.classList.add("logging-out");
+    logoutBtn.textContent = "ĐANG ĐĂNG XUẤT...";
+  }
+
+  try {
+    const [{ auth }, { signOut }] = await Promise.all([
+      import("./firebase.js"),
+      import("https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js"),
+    ]);
+
+    await signOut(auth);
+    window.location.href = "auth.html";
+  } catch (err) {
+    console.error("Logout error:", err);
+
+    if (error) {
+      error.textContent = "Không thể đăng xuất lúc này. Vui lòng thử lại.";
+    }
+
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "THỬ LẠI";
+    }
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (closeBtn) closeBtn.disabled = false;
+    if (logoutBtn) {
+      logoutBtn.disabled = false;
+      logoutBtn.classList.remove("logging-out");
+      logoutBtn.textContent = oldNavText;
+    }
+  }
+}
+
+function initDashboardLogout() {
+  const logoutBtn = document.getElementById("logoutBtn");
+  const modal = document.getElementById("logoutModal");
+  const cancelBtn = document.getElementById("logoutCancelBtn");
+  const closeBtn = document.getElementById("logoutCancelX");
+  const confirmBtn = document.getElementById("logoutConfirmBtn");
+
+  if (!logoutBtn || !modal) return;
+
+  logoutBtn.addEventListener("click", openLogoutModal);
+  cancelBtn?.addEventListener("click", closeLogoutModal);
+  closeBtn?.addEventListener("click", closeLogoutModal);
+  confirmBtn?.addEventListener("click", confirmDashboardLogout);
+
+  modal.addEventListener("click", (event) => {
+    if (event.target.matches("[data-logout-close]")) {
+      closeLogoutModal();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("show")) {
+      closeLogoutModal();
+    }
+  });
+}
+
+
 /* ═══════════════════════════════════════════
    NAV: TIME & UPTIME
 ═══════════════════════════════════════════ */
@@ -676,6 +789,7 @@ function init() {
 
   drawMap();
   setInterval(updateNav, 1000);
+  initDashboardLogout();
 
   addLog("ok", "[SYS]", "AGV Dashboard initialized");
   addLog("ok", "[ROS]", "ROS2 Humble node connected");

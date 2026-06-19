@@ -50,6 +50,14 @@
         >
           ⬛ E-STOP
         </button>
+        <button
+          class="nav-btn nav-logout-btn"
+          type="button"
+          id="logoutBtn"
+          title="Đăng xuất khỏi hệ thống"
+        >
+          ĐĂNG XUẤT
+        </button>
       </div>
     </header>
 
@@ -152,15 +160,6 @@
             <div class="status-bar-fill" id="statusBarFill"></div>
           </div>
         </div>
-
-        <div class="widget widget-log">
-          <div class="widget-header">
-            <span class="widget-icon">▶</span>
-            <span class="widget-title">SYSTEM LOG</span>
-            <button class="log-clear" onclick="clearLog()">CLR</button>
-          </div>
-          <div class="log-feed" id="logFeed"></div>
-        </div>
       </aside>
 
       <main class="panel-center">
@@ -242,6 +241,61 @@
         </div>
       </main>
     </div>
-    <script src="../js/dashboard.js"></script>
+
+    <!-- LOGOUT CONFIRM MODAL -->
+    <div class="logout-modal" id="logoutModal" aria-hidden="true">
+      <div class="logout-modal__backdrop" data-logout-close></div>
+      <div
+        class="logout-modal__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="logoutModalTitle"
+        aria-describedby="logoutModalDesc"
+      >
+        <button
+          class="logout-modal__close"
+          type="button"
+          id="logoutCancelX"
+          aria-label="Đóng hộp thoại đăng xuất"
+        >
+          ×
+        </button>
+
+        <div class="logout-modal__icon">↪</div>
+
+        <div class="logout-modal__content">
+          <span class="logout-modal__kicker">Phiên làm việc</span>
+          <h2 id="logoutModalTitle">Bạn muốn đăng xuất ?</h2>
+          <p id="logoutModalDesc">
+            Phiên làm việc hiện tại sẽ kết thúc. Bạn có thể đăng nhập lại bất cứ
+            lúc nào để tiếp tục sử dụng Dashboard.
+          </p>
+          <p
+            class="logout-modal__error"
+            id="logoutError"
+            aria-live="polite"
+          ></p>
+        </div>
+
+        <div class="logout-modal__actions">
+          <button
+            class="logout-modal__btn ghost"
+            type="button"
+            id="logoutCancelBtn"
+          >
+            Ở lại
+          </button>
+          <button
+            class="logout-modal__btn danger"
+            type="button"
+            id="logoutConfirmBtn"
+          >
+            Đăng xuất
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../js/dashboard.js?v=modal-font-1"></script>
   </body>
 </html>
