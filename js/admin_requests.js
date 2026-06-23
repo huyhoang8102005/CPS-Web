@@ -43,13 +43,18 @@ async function initRequestsPage() {
     renderRequests([...pendingMap.values()]);
   });
 
-  document.getElementById("requestList")?.addEventListener("click", handleListClick);
+  document
+    .getElementById("requestList")
+    ?.addEventListener("click", handleListClick);
   listenPendingRequests();
 }
 
 function listenPendingRequests() {
   const list = document.getElementById("requestList");
-  const pendingQuery = query(collection(db, "pending_requests"), orderBy("createdAt", "desc"));
+  const pendingQuery = query(
+    collection(db, "pending_requests"),
+    orderBy("createdAt", "desc"),
+  );
 
   onSnapshot(
     pendingQuery,
@@ -72,30 +77,38 @@ function listenPendingRequests() {
           ${escapeHTML(error.message)}
         </div>
       `;
-      showToast("Không thể tải danh sách đăng ký. Vui lòng thử lại sau.", "error");
+      showToast(
+        "Không thể tải danh sách đăng ký. Vui lòng thử lại sau.",
+        "error",
+      );
     },
   );
 }
 
 function renderStats(requests) {
-  const operatorCount = requests.filter((req) => req.role === "operator").length;
+  const operatorCount = requests.filter(
+    (req) => req.role === "operator",
+  ).length;
   const adminCount = requests.filter((req) => req.role === "admin").length;
 
   document.getElementById("pendingCount").textContent = requests.length;
-  document.getElementById("pendingTotalHero").textContent = `${requests.length} yêu cầu`;
+  document.getElementById("pendingTotalHero").textContent =
+    `${requests.length} yêu cầu`;
   document.getElementById("operatorCount").textContent = operatorCount;
   document.getElementById("adminReqCount").textContent = adminCount;
-  document.getElementById("lastUpdate").textContent = new Date().toLocaleTimeString("vi-VN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  document.getElementById("lastUpdate").textContent =
+    new Date().toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 }
 
 function renderRequests(requests) {
   const list = document.getElementById("requestList");
   const filtered = requests.filter((req) => {
     if (!currentKeyword) return true;
-    const fullName = `${req.firstName || ""} ${req.lastName || ""}`.toLowerCase();
+    const fullName =
+      `${req.firstName || ""} ${req.lastName || ""}`.toLowerCase();
     const email = String(req.email || "").toLowerCase();
     return fullName.includes(currentKeyword) || email.includes(currentKeyword);
   });
@@ -177,7 +190,9 @@ async function handleListClick(event) {
   const action = button.dataset.action;
 
   if (action === "random") {
-    const input = document.querySelector(`[data-password-input="${CSS.escape(id)}"]`);
+    const input = document.querySelector(
+      `[data-password-input="${CSS.escape(id)}"]`,
+    );
     if (input) input.value = generateTempPassword();
     return;
   }
@@ -216,7 +231,9 @@ function generateTempPassword() {
 
 function getSecondaryAuth() {
   const appName = "admin-secondary-auth";
-  const secondaryApp = getApps().find((app) => app.name === appName) || initializeApp(firebaseConfig, appName);
+  const secondaryApp =
+    getApps().find((app) => app.name === appName) ||
+    initializeApp(firebaseConfig, appName);
   return getAuth(secondaryApp);
 }
 
@@ -227,13 +244,20 @@ async function approveRequest(id, button) {
     return;
   }
 
-  const passwordInput = document.querySelector(`[data-password-input="${CSS.escape(id)}"]`);
-  const roleInput = document.querySelector(`[data-role-input="${CSS.escape(id)}"]`);
+  const passwordInput = document.querySelector(
+    `[data-password-input="${CSS.escape(id)}"]`,
+  );
+  const roleInput = document.querySelector(
+    `[data-role-input="${CSS.escape(id)}"]`,
+  );
   const password = passwordInput?.value.trim() || "";
   const role = roleInput?.value || req.role || "operator";
 
   if (!req.email) {
-    showToast("Không thể tạo tài khoản vì thông tin đăng ký thiếu email.", "error");
+    showToast(
+      "Không thể tạo tài khoản vì thông tin đăng ký thiếu email.",
+      "error",
+    );
     return;
   }
 
@@ -247,7 +271,11 @@ async function approveRequest(id, button) {
 
   try {
     const secondaryAuth = getSecondaryAuth();
-    const credential = await createUserWithEmailAndPassword(secondaryAuth, req.email, password);
+    const credential = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      req.email,
+      password,
+    );
     const createdUser = credential.user;
 
     await setDoc(
@@ -261,6 +289,7 @@ async function approveRequest(id, button) {
         status: "active",
         source: "admin_approval",
         pendingRequestId: id,
+        temporaryPassword: password,
         createdAt: serverTimestamp(),
         approvedAt: serverTimestamp(),
         approvedBy: currentAdmin?.user?.uid || null,
@@ -271,19 +300,20 @@ async function approveRequest(id, button) {
     await signOut(secondaryAuth).catch(() => {});
     await deleteDoc(doc(db, "pending_requests", id));
 
-    const displayName = `${req.firstName || ""} ${req.lastName || ""}`.trim() || req.email;
+    const displayName =
+      `${req.firstName || ""} ${req.lastName || ""}`.trim() || req.email;
     showToast(`Đã kích hoạt tài khoản cho ${displayName}.`, "ok");
   } catch (error) {
     console.error(error);
     if (error.code === "auth/email-already-in-use") {
-      showToast(
-        "Email này đã có tài khoản trong hệ thống.",
-        "warn",
-      );
+      showToast("Email này đã có tài khoản trong hệ thống.", "warn");
     } else if (error.code === "auth/weak-password") {
       showToast("Mật khẩu chưa đủ mạnh. Hãy nhập mật khẩu khác.", "warn");
     } else {
-      showToast("Không thể kích hoạt tài khoản. Vui lòng kiểm tra lại thông tin.", "error");
+      showToast(
+        "Không thể kích hoạt tài khoản. Vui lòng kiểm tra lại thông tin.",
+        "error",
+      );
     }
   } finally {
     setButtonLoading(button, false, "CẤP TÀI KHOẢN");
@@ -304,7 +334,10 @@ async function sendResetEmailForRequest(id, button) {
     showToast("Đã gửi email đặt lại mật khẩu cho " + req.email, "ok");
   } catch (error) {
     console.error(error);
-    showToast("Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại.", "error");
+    showToast(
+      "Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại.",
+      "error",
+    );
   } finally {
     setButtonLoading(button, false, "GỬI EMAIL ĐẶT LẠI");
   }
@@ -314,7 +347,9 @@ async function rejectRequest(id, button) {
   const req = pendingMap.get(id);
   if (!req) return;
 
-  const ok = window.confirm(`Từ chối yêu cầu đăng ký của ${req.email || "người dùng này"}?`);
+  const ok = window.confirm(
+    `Từ chối yêu cầu đăng ký của ${req.email || "người dùng này"}?`,
+  );
   if (!ok) return;
 
   setButtonLoading(button, true, "ĐANG XÓA...");
