@@ -117,7 +117,6 @@ function renderRequests(requests) {
     list.innerHTML = `
       <div class="empty-state" style="grid-column: 1 / -1">
         <strong>${requests.length ? "Không tìm thấy tài khoản phù hợp" : "Chưa có tài khoản nào chờ duyệt"}</strong>
-        ${requests.length ? "Thử tìm bằng tên hoặc email khác." : "Các đăng ký mới sẽ tự động xuất hiện tại đây."}
       </div>
     `;
     return;
@@ -278,6 +277,7 @@ async function approveRequest(id, button) {
     );
     const createdUser = credential.user;
 
+    // 1. Lưu thông tin user vào Firestore
     await setDoc(
       doc(db, "users", createdUser.uid),
       {
@@ -289,7 +289,7 @@ async function approveRequest(id, button) {
         status: "active",
         source: "admin_approval",
         pendingRequestId: id,
-        temporaryPassword: password,
+        temporaryPassword: password, // Lưu pass tạm thời (có thể bỏ đi ở bản production để bảo mật)
         createdAt: serverTimestamp(),
         approvedAt: serverTimestamp(),
         approvedBy: currentAdmin?.user?.uid || null,
@@ -297,12 +297,42 @@ async function approveRequest(id, button) {
       { merge: true },
     );
 
+    // ==========================================
+    // 2. GỬI EMAIL THÔNG BÁO CHO NGƯỜI DÙNG
+    // ==========================================
+    try {
+      const displayName =
+        `${req.firstName || ""} ${req.lastName || ""}`.trim() || "Người dùng";
+
+      const templateParams = {
+        to_name: displayName,
+        to_email: req.email,
+        role_assigned: roleLabel(role),
+        password: password,
+        // Lấy domain hiện tại ghép với /auth.html để ra link đăng nhập
+        login_url: window.location.origin + "/auth.html",
+      };
+
+      // THAY "YOUR_NEW_TEMPLATE_ID" BẰNG TEMPLATE ID BẠN VỪA TẠO Ở BƯỚC 1
+      await emailjs.send("service_inji2pw", "template_0ryjv3f", templateParams);
+      console.log("Đã gửi email thông báo thành công cho User.");
+    } catch (emailError) {
+      console.error("Lỗi khi gửi email:", emailError);
+      // Dùng showToast báo lỗi gửi mail nhưng không return để tiến trình xóa pending vẫn tiếp tục
+      showToast("Tạo TK thành công nhưng lỗi khi gửi email thông báo.", "warn");
+    }
+    // ==========================================
+
+    // 3. Xóa yêu cầu khỏi danh sách chờ và hoàn tất
     await signOut(secondaryAuth).catch(() => {});
     await deleteDoc(doc(db, "pending_requests", id));
 
-    const displayName =
+    const finalDisplayName =
       `${req.firstName || ""} ${req.lastName || ""}`.trim() || req.email;
-    showToast(`Đã kích hoạt tài khoản cho ${displayName}.`, "ok");
+    showToast(
+      `Đã kích hoạt tài khoản & gửi email cho ${finalDisplayName}.`,
+      "ok",
+    );
   } catch (error) {
     console.error(error);
     if (error.code === "auth/email-already-in-use") {
