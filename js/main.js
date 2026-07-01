@@ -293,12 +293,12 @@ typewriter/* ══════════════════════�
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  const COLS = 15, ROWS = 10;
+  const COLS = 10, ROWS = 7;
   const CW = canvas.width / COLS;
   const CH = canvas.height / ROWS;
 
   // Obstacles
-  const obstacles = new Set(['3,2','3,3','3,4','7,1','7,2','10,5','10,6','10,7','5,7','6,7']);
+  const obstacles = new Set(['3,2','3,3','3,4','7,1','7,2','5,5','6,5']);
 
   // BFS
   function bfs(start, goal) {
@@ -324,8 +324,8 @@ typewriter/* ══════════════════════�
     return [];
   }
 
-  let agvPos = [0, 9]; // bottom-left home
-  let goalPos = [14, 0];
+  let agvPos = [0, 6]; // visual home
+  let goalPos = [9, 0];
   let currentPath = bfs(agvPos, goalPos);
   let pathStep = 0;
   let pathAnim = [];
@@ -472,7 +472,7 @@ typewriter/* ══════════════════════�
     entries.forEach(e => {
       if (!e.isIntersecting) return;
       const el = e.target;
-      const target = parseInt(el.dataset.target);
+      const target = parseFloat(el.dataset.target);
       let current = 0;
       const step = Math.max(1, Math.ceil(target / 40));
       const interval = setInterval(() => {
@@ -622,7 +622,7 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
 
-  const COLS = 10, ROWS = 10;
+  const COLS = 10, ROWS = 7;
   // Size canvas to exactly fill the container
   function setup() {
     const parent = canvas.parentElement;
@@ -635,13 +635,12 @@ document.querySelectorAll('a[href^="#"]').forEach(a => {
   let cells = setup();
   window.addEventListener('resize', () => { cells = setup(); });
 
-  // Static obstacles — spread across 10×10 grid, leaving clear BFS routes
+  // Static obstacles — spread across 10x7 grid, leaving clear BFS routes
   const OBS = new Set([
     '2,1','2,2','5,0','5,1','8,3','8,4',
     '1,5','4,3','7,5','3,6','6,2',
-    '0,8','9,7','4,8','6,7','2,8',
     '1,3','7,1','3,4','9,2','5,6',
-    '8,8','4,6','0,5','6,9'
+    '4,6','0,5'
   ]);
 
   // BFS pathfinding

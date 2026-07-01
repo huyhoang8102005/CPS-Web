@@ -73,13 +73,13 @@
             <div class="pos-item">
               <span class="pos-axis">X</span>
               <span class="pos-val" id="dispX">00</span>
-              <span class="pos-unit">col</span>
+              <span class="pos-unit">m</span>
             </div>
             <div class="pos-sep">·</div>
             <div class="pos-item">
               <span class="pos-axis">Y</span>
               <span class="pos-val" id="dispY">00</span>
-              <span class="pos-unit">row</span>
+              <span class="pos-unit">m</span>
             </div>
             <div class="pos-sep">·</div>
             <div class="pos-item">
@@ -155,9 +155,26 @@
               <span class="state-label">MOVING</span>
               <span class="state-check" id="checkMoving">✓</span>
             </div>
+            <div class="state-item" id="stateReached">
+              <div class="state-dot dot-green"></div>
+              <span class="state-label">REACHED</span>
+              <span class="state-check" id="checkReached">-</span>
+            </div>
+            <div class="state-item" id="stateError">
+              <div class="state-dot dot-red"></div>
+              <span class="state-label">ERROR</span>
+              <span class="state-check" id="checkError">-</span>
+            </div>
           </div>
           <div class="status-bar-wrap">
             <div class="status-bar-fill" id="statusBarFill"></div>
+          </div>
+          <div class="battery-inline">
+            <span>BATTERY</span>
+            <div class="battery-track">
+              <div class="battery-fill" id="batteryFill"></div>
+            </div>
+            <strong id="batteryVal">85%</strong>
           </div>
         </div>
       </aside>
@@ -165,9 +182,9 @@
       <main class="panel-center">
         <div class="map-toolbar">
           <div class="map-info">
-            <span class="map-badge">10 × 15 GRID</span>
-            <span class="map-badge">2m × 3m ARENA</span>
-            <span class="map-badge" id="pathBadge">Dijkstra: — steps</span>
+            <span class="map-badge">10 × 7 GRID</span>
+            <span class="map-badge">3m × 2.1m ARENA</span>
+            <span class="map-badge">30cm CELL</span>
           </div>
           <div class="map-controls">
             <button
@@ -296,6 +313,6 @@
       </div>
     </div>
 
-    <script src="../js/dashboard.js?v=modal-font-1"></script>
+    <script src="../js/dashboard.js?v=grid-30cm-firebase-1"></script>
   </body>
 </html>

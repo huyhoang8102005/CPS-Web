@@ -1,26 +1,33 @@
 "use strict";
-/* ═══════════════════════════════════════════
-   AGV DASHBOARD — dashboard.js
-   Modules: Grid/Dijkstra, Telemetry, Compass,
-            Arc Gauges, Log, MQTT sim
-═══════════════════════════════════════════ */
 
-/* ── GRID CONFIG ─────────────────────────────── */
-const COLS = 10,
-  ROWS = 15;
-const CELL = 55;
+/*
+  AGV Dashboard
+  Grid: 10 columns x 7 rows
+  Physical scale: 1 cell = 0.30m x 0.30m
+  Arena: 3.00m x 2.10m
+*/
 
-/* ── GLOBAL STATE ────────────────────────────── */
+const COLS = 10;
+const ROWS = 7;
+const CELL = 60; // canvas pixels per visual cell
+const CELL_SIZE_M = 0.3;
+const ARENA_WIDTH_M = COLS * CELL_SIZE_M;
+const ARENA_HEIGHT_M = ROWS * CELL_SIZE_M;
+const FIRESTORE_CONTROL_DOC_PATH = ["agv_system", "robot_control"];
+const FIRESTORE_TELEMETRY_DOC_PATH = ["agv_system", "robot_telemetry"];
+const FIRESTORE_STATUS_DOC_PATH = ["agv_system", "robot_status"];
+
 const state = {
-  agv: { col: 0, row: 0, angle: 0 },  // Đặt xe mặc định ở (0,0) - Góc dưới trái
-  goal: { col: 0, row: 0 },
-  home: { col: 0, row: 0 },
-  prevPos: null,                      // Lưu vị trí cũ trước khi di chuyển
+  agv: { x: 0, y: 0, theta: 0, col: 0, row: 0 },
+  goal: { x: 0, y: 0, theta: 0, col: 0, row: 0, timestamp: 0, command: "NAVIGATE" },
+  home: { x: 0, y: 0, theta: 0, col: 0, row: 0 },
+  prevPos: null,
   path: [],
   pathStep: 0,
   moving: false,
   estop: false,
   agvStatus: "idle",
+  battery: 85,
   velocity: { v: 0, w: 0 },
   mqttTx: 0,
   mqttRx: 0,
@@ -28,40 +35,132 @@ const state = {
   moveInterval: null,
   animFrame: null,
   visitedCells: new Set(),
+  lastCommandTimestamp: 0,
 };
 
-/* ═══════════════════════════════════════════
-   DIJKSTRA PATHFINDING ALGORITHM
-═══════════════════════════════════════════ */
+const firebaseSync = {
+  ready: false,
+  lastError: "",
+  controlRef: null,
+  telemetryRef: null,
+  statusRef: null,
+  setDoc: null,
+  serverTimestamp: null,
+  unsubscribes: [],
+};
+
+const canvas = document.getElementById("mapCanvas");
+const ctx = canvas.getContext("2d");
+canvas.width = COLS * CELL;
+canvas.height = ROWS * CELL;
+
+let renderX = cellToCanvasCenter(state.agv.col, state.agv.row).x;
+let renderY = cellToCanvasCenter(state.agv.col, state.agv.row).y;
+let renderAngle = 0;
+let axisBuilt = false;
+let logCount = 0;
+const startTime = Date.now();
+const AGV_BODY_W = 50;
+const AGV_BODY_H = 40;
+const AGV_HALF_W = AGV_BODY_W / 2;
+const AGV_HALF_H = AGV_BODY_H / 2;
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function round(value, digits = 3) {
+  const p = 10 ** digits;
+  return Math.round(Number(value) * p) / p;
+}
+
+function normalizeTheta(theta) {
+  const value = Number(theta);
+  if (!Number.isFinite(value)) return 0;
+  let t = value;
+  while (t > Math.PI) t -= Math.PI * 2;
+  while (t < -Math.PI) t += Math.PI * 2;
+  return t;
+}
+
+function cellOriginToMeters(col, row) {
+  return {
+    x: round(clamp(col, 0, COLS - 1) * CELL_SIZE_M, 3),
+    y: round(clamp(row, 0, ROWS - 1) * CELL_SIZE_M, 3),
+  };
+}
+
+function metersToCell(x, y) {
+  const safeX = clamp(Number(x) || 0, 0, ARENA_WIDTH_M - 0.001);
+  const safeY = clamp(Number(y) || 0, 0, ARENA_HEIGHT_M - 0.001);
+  return {
+    col: clamp(Math.floor(safeX / CELL_SIZE_M), 0, COLS - 1),
+    row: clamp(Math.floor(safeY / CELL_SIZE_M), 0, ROWS - 1),
+  };
+}
+
+function poseToCanvasX(x) {
+  const margin = CELL * 0.2;
+  return clamp((clamp(Number(x) || 0, 0, ARENA_WIDTH_M) / ARENA_WIDTH_M) * canvas.width, margin, canvas.width - margin);
+}
+
+function poseToCanvasY(y) {
+  const margin = CELL * 0.2;
+  return clamp(canvas.height - (clamp(Number(y) || 0, 0, ARENA_HEIGHT_M) / ARENA_HEIGHT_M) * canvas.height, margin, canvas.height - margin);
+}
+
+function cellToCanvasCenter(col, row) {
+  return {
+    x: col * CELL + CELL / 2,
+    y: (ROWS - 1 - row) * CELL + CELL / 2,
+  };
+}
+
+function agvToCanvasCenter() {
+  return cellToCanvasCenter(state.agv.col, state.agv.row);
+}
+
+function syncAgvCellFromMeters() {
+  const cell = metersToCell(state.agv.x, state.agv.y);
+  state.agv.col = cell.col;
+  state.agv.row = cell.row;
+}
+
+function setAgvPoseMeters(x, y, theta = state.agv.theta) {
+  state.agv.x = round(clamp(Number(x) || 0, 0, ARENA_WIDTH_M), 3);
+  state.agv.y = round(clamp(Number(y) || 0, 0, ARENA_HEIGHT_M), 3);
+  state.agv.theta = normalizeTheta(theta);
+  syncAgvCellFromMeters();
+}
+
+function setAgvPoseCell(col, row, theta = state.agv.theta) {
+  const safeCol = clamp(Math.round(Number(col) || 0), 0, COLS - 1);
+  const safeRow = clamp(Math.round(Number(row) || 0), 0, ROWS - 1);
+  const pose = cellOriginToMeters(safeCol, safeRow);
+  state.agv.x = pose.x;
+  state.agv.y = pose.y;
+  state.agv.theta = normalizeTheta(theta);
+  state.agv.col = safeCol;
+  state.agv.row = safeRow;
+}
+
 function dijkstra(sc, sr, gc, gr) {
   if (sc === gc && sr === gr) return [];
-  
-  const key = (c, r) => `${c},${r}`;
-  const dist = new Map();     // Lưu chi phí nhỏ nhất để đến từng node
-  const parent = new Map();   // Lưu dấu đường đi
-  const pq = [];              // Priority Queue (Hàng đợi ưu tiên)
 
-  // Khởi tạo điểm xuất phát
+  const key = (c, r) => `${c},${r}`;
+  const dist = new Map();
+  const parent = new Map();
+  const pq = [{ c: sc, r: sr, cost: 0 }];
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
   dist.set(key(sc, sr), 0);
   parent.set(key(sc, sr), null);
-  pq.push({ c: sc, r: sr, cost: 0 });
-
-  const dirs = [
-    [1, 0],   // Phải
-    [-1, 0],  // Trái
-    [0, 1],   // Lên
-    [0, -1],  // Xuống
-  ];
 
   while (pq.length > 0) {
-    // Sắp xếp lại Queue để lấy Node có cost thấp nhất (Dijkstra cốt lõi)
     pq.sort((a, b) => a.cost - b.cost);
     const curr = pq.shift();
-    const cc = curr.c;
-    const cr = curr.r;
 
-    // Nếu đã tới đích, truy xuất ngược mảng parent để lấy đường đi
-    if (cc === gc && cr === gr) {
+    if (curr.c === gc && curr.r === gr) {
       const path = [];
       let curKey = key(gc, gr);
       while (curKey) {
@@ -72,44 +171,36 @@ function dijkstra(sc, sr, gc, gr) {
       return path.reverse();
     }
 
-    // Duyệt qua 4 hướng
     for (const [dc, dr] of dirs) {
-      const nc = cc + dc;
-      const nr = cr + dr;
-      
-      // Kiểm tra viền sa bàn
+      const nc = curr.c + dc;
+      const nr = curr.r + dr;
       if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
 
       const nk = key(nc, nr);
-      // Chi phí bước đi (Ở đây đồng nhất là 1, bạn có thể chỉnh sửa nếu ô có trọng số)
-      const newCost = dist.get(key(cc, cr)) + 1;
-
-      // Nếu ô chưa được tính toán hoặc tìm được đường mới ngắn hơn đường cũ
+      const newCost = dist.get(key(curr.c, curr.r)) + 1;
       if (!dist.has(nk) || newCost < dist.get(nk)) {
         dist.set(nk, newCost);
-        parent.set(nk, key(cc, cr));
+        parent.set(nk, key(curr.c, curr.r));
         pq.push({ c: nc, r: nr, cost: newCost });
       }
     }
   }
-  return null; // Không tìm được đường
+
+  return null;
 }
 
-/* ═══════════════════════════════════════════
-   CANVAS MAP RENDERER (Y=0 ở dưới cùng)
-═══════════════════════════════════════════ */
-const canvas = document.getElementById("mapCanvas");
-const ctx = canvas.getContext("2d");
-canvas.width = COLS * CELL;
-canvas.height = ROWS * CELL;
-
-// Khởi tạo tọa độ render ban đầu
-let renderX = state.agv.col * CELL + CELL / 2;
-let renderY = (ROWS - 1 - state.agv.row) * CELL + CELL / 2;
-let renderAngle = 0;
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
+function roundRectPath(context, x, y, w, h, r) {
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.lineTo(x + w - r, y);
+  context.quadraticCurveTo(x + w, y, x + w, y + r);
+  context.lineTo(x + w, y + h - r);
+  context.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  context.lineTo(x + r, y + h);
+  context.quadraticCurveTo(x, y + h, x, y + h - r);
+  context.lineTo(x, y + r);
+  context.quadraticCurveTo(x, y, x + r, y);
+  context.closePath();
 }
 
 function drawMap() {
@@ -120,151 +211,135 @@ function drawMap() {
   for (let c = 0; c < COLS; c++) {
     for (let r = 0; r < ROWS; r++) {
       const x = c * CELL;
-      const y = (ROWS - 1 - r) * CELL; // Lật ngược trục Y: r=0 nằm ở dưới đáy
+      const y = (ROWS - 1 - r) * CELL;
       const key = `${c},${r}`;
 
       if (state.visitedCells.has(key)) {
-        ctx.fillStyle = "rgba(167,139,250,0.05)";
+        ctx.fillStyle = "rgba(167,139,250,0.08)";
         ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
       }
-      ctx.strokeStyle = "rgba(56,189,248,0.1)";
+
+      ctx.strokeStyle = "rgba(56,189,248,0.14)";
       ctx.lineWidth = 1;
       ctx.strokeRect(x, y, CELL, CELL);
-      ctx.fillStyle = "rgba(56,189,248,0.2)";
+      ctx.fillStyle = "rgba(56,189,248,0.22)";
       ctx.beginPath();
       ctx.arc(x, y, 2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  // Draw Home
-  const hx = state.home.col * CELL;
-  const hy = (ROWS - 1 - state.home.row) * CELL;
-  ctx.fillStyle = "rgba(251,191,36,0.08)";
-  ctx.fillRect(hx + 1, hy + 1, CELL - 2, CELL - 2);
-  ctx.strokeStyle = "rgba(251,191,36,0.35)";
-  ctx.lineWidth = 2;
-  ctx.setLineDash([4, 4]);
-  ctx.strokeRect(hx + 1.5, hy + 1.5, CELL - 3, CELL - 3);
-  ctx.setLineDash([]);
-  ctx.fillStyle = "rgba(251,191,36,0.8)";
-  ctx.font = `bold 14px 'Share Tech Mono'`;
-  ctx.textAlign = "center";
-  ctx.fillText("⌂", hx + CELL / 2, hy + CELL / 2 + 5);
+  drawCellMarker(state.home.col, state.home.row, "rgba(251,191,36,0.08)", "rgba(251,191,36,0.35)", "H");
 
-  // Draw Path
   if (state.path.length > 1) {
     state.path.forEach((p, i) => {
       if (i === 0) return;
-      const px = p.col * CELL;
-      const py = (ROWS - 1 - p.row) * CELL;
+      const { x, y } = cellToCanvasCenter(p.col, p.row);
       const prog = i / (state.path.length - 1);
       ctx.fillStyle = `rgba(56,189,248,${0.06 + prog * 0.1})`;
-      ctx.fillRect(px + 3, py + 3, CELL - 6, CELL - 6);
+      ctx.fillRect(x - CELL / 2 + 3, y - CELL / 2 + 3, CELL - 6, CELL - 6);
     });
 
     ctx.save();
-    ctx.strokeStyle = "rgba(56,189,248,0.6)";
+    ctx.strokeStyle = "rgba(56,189,248,0.65)";
     ctx.lineWidth = 3;
     ctx.setLineDash([6, 6]);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.beginPath();
     state.path.forEach((p, i) => {
-      const px = p.col * CELL + CELL / 2;
-      const py = (ROWS - 1 - p.row) * CELL + CELL / 2;
-      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      const point = cellToCanvasCenter(p.col, p.row);
+      i === 0 ? ctx.moveTo(point.x, point.y) : ctx.lineTo(point.x, point.y);
     });
     ctx.stroke();
     ctx.restore();
   }
 
-  // Draw Goal
-  if (state.path.length > 0) {
-    const g = state.goal;
-    const gx = g.col * CELL;
-    const gy = (ROWS - 1 - g.row) * CELL;
-    const grad = ctx.createRadialGradient(
-      gx + CELL / 2, gy + CELL / 2, 0,
-      gx + CELL / 2, gy + CELL / 2, CELL * 0.7
-    );
-    grad.addColorStop(0, "rgba(74,222,128,0.3)");
-    grad.addColorStop(1, "transparent");
-    ctx.fillStyle = grad;
-    ctx.fillRect(gx, gy, CELL, CELL);
-    ctx.strokeStyle = "rgba(74,222,128,0.8)";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(gx + 2, gy + 2, CELL - 4, CELL - 4);
-    ctx.fillStyle = "rgba(74,222,128,0.9)";
-    ctx.font = `bold 16px 'Share Tech Mono'`;
-    ctx.textAlign = "center";
-    ctx.fillText("✦", gx + CELL / 2, gy + CELL / 2 + 6);
+  if (state.path.length > 0 || state.goal.timestamp > 0) {
+    drawCellMarker(state.goal.col, state.goal.row, "rgba(74,222,128,0.16)", "rgba(74,222,128,0.85)", "G");
   }
 
-  // Cập nhật vị trí render của AGV (lerp mượt mà)
-  const targetX = state.agv.col * CELL + CELL / 2;
-  const targetY = (ROWS - 1 - state.agv.row) * CELL + CELL / 2;
-  renderX = lerp(renderX, targetX, 0.15);
-  renderY = lerp(renderY, targetY, 0.15);
+  const agvCenter = agvToCanvasCenter();
+  renderX = lerp(renderX, agvCenter.x, 0.18);
+  renderY = lerp(renderY, agvCenter.y, 0.18);
 
-  // Xử lý góc xoay đảo ngược do Y của canvas vẽ từ trên xuống
-  let targetAngle = -state.agv.angle; 
+  const targetAngle = -state.agv.theta;
   let da = targetAngle - renderAngle;
   if (da > Math.PI) da -= Math.PI * 2;
   if (da < -Math.PI) da += Math.PI * 2;
-  renderAngle += da * 0.12;
+  renderAngle += da * 0.14;
 
-  const agvGrad = ctx.createRadialGradient(renderX, renderY, 0, renderX, renderY, CELL * 0.8);
-  agvGrad.addColorStop(0, "rgba(56,189,248,0.25)");
+  const agvGrad = ctx.createRadialGradient(renderX, renderY, 0, renderX, renderY, CELL * 0.9);
+  agvGrad.addColorStop(0, "rgba(56,189,248,0.28)");
   agvGrad.addColorStop(1, "transparent");
   ctx.fillStyle = agvGrad;
   ctx.beginPath();
-  ctx.arc(renderX, renderY, CELL * 0.8, 0, Math.PI * 2);
+  ctx.arc(renderX, renderY, CELL * 0.9, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.save();
   ctx.translate(renderX, renderY);
   ctx.rotate(renderAngle);
-  ctx.fillStyle = "rgba(56,189,248,0.18)";
+  ctx.fillStyle = "rgba(56,189,248,0.20)";
   ctx.strokeStyle = "rgba(56,189,248,0.95)";
   ctx.lineWidth = 2;
-  roundRectPath(ctx, -18, -12, 36, 24, 4);
+  roundRectPath(ctx, -AGV_HALF_W, -AGV_HALF_H, AGV_BODY_W, AGV_BODY_H, 6);
   ctx.fill();
   ctx.stroke();
-  ctx.fillStyle = "rgba(56,189,248,0.6)";
-  [[-15, -15], [15, -15], [-15, 15], [15, 15]].forEach(([wx, wy]) => {
-    ctx.beginPath(); ctx.arc(wx, wy, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(56,189,248,0.65)";
+  [[-21, -23], [21, -23], [-21, 23], [21, 23]].forEach(([wx, wy]) => {
+    ctx.beginPath();
+    ctx.arc(wx, wy, 4.5, 0, Math.PI * 2);
+    ctx.fill();
   });
   ctx.fillStyle = "rgba(56,189,248,0.95)";
   ctx.beginPath();
-  ctx.moveTo(18, 0); ctx.lineTo(9, -7); ctx.lineTo(9, 7);
-  ctx.closePath(); ctx.fill();
+  ctx.moveTo(AGV_HALF_W + 2, 0);
+  ctx.lineTo(AGV_HALF_W - 10, -10);
+  ctx.lineTo(AGV_HALF_W - 10, 10);
+  ctx.closePath();
+  ctx.fill();
   ctx.fillStyle = "#38bdf8";
-  ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(0, 0, 4, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 
   buildAxisLabels();
   state.animFrame = requestAnimationFrame(drawMap);
 }
 
-function roundRectPath(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
+function drawCellMarker(col, row, fill, stroke, label) {
+  const { x, y } = cellToCanvasCenter(col, row);
+  const left = x - CELL / 2;
+  const top = y - CELL / 2;
+
+  ctx.fillStyle = fill;
+  ctx.fillRect(left + 1, top + 1, CELL - 2, CELL - 2);
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 2;
+  ctx.setLineDash(label === "H" ? [4, 4] : []);
+  ctx.strokeRect(left + 2, top + 2, CELL - 4, CELL - 4);
+  ctx.setLineDash([]);
+  ctx.fillStyle = stroke;
+  ctx.font = "bold 15px 'Share Tech Mono'";
+  ctx.textAlign = "center";
+  ctx.fillText(label, x, y + 5);
 }
 
-let axisBuilt = false;
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 function buildAxisLabels() {
   if (axisBuilt) return;
   axisBuilt = true;
+
   const axY = document.getElementById("axisY");
   const axX = document.getElementById("axisX");
   axY.innerHTML = "";
   axX.innerHTML = "";
-  // Xây dựng trục Y từ trên xuống dưới (đỉnh canvas là ROWS - 1, đáy là 0)
+
   for (let r = ROWS - 1; r >= 0; r--) {
     const el = document.createElement("span");
     el.className = "axis-label";
@@ -274,7 +349,7 @@ function buildAxisLabels() {
     el.style.alignItems = "center";
     axY.appendChild(el);
   }
-  // Trục X bình thường từ 0 -> COLS - 1
+
   for (let c = 0; c < COLS; c++) {
     const el = document.createElement("span");
     el.className = "axis-label";
@@ -284,9 +359,6 @@ function buildAxisLabels() {
   }
 }
 
-/* =========================================================
-   XỬ LÝ CLICK CANVAS ĐÃ QUY ĐỔI HỆ TỌA ĐỘ
-========================================================= */
 canvas.addEventListener("click", (e) => {
   if (state.estop) return;
 
@@ -295,35 +367,36 @@ canvas.addEventListener("click", (e) => {
   const scaleY = canvas.height / rect.height;
   const mx = (e.clientX - rect.left) * scaleX;
   const my = (e.clientY - rect.top) * scaleY;
-  
-  const gc = Math.floor(mx / CELL);
-  const visual_r = Math.floor(my / CELL);
-  const gr = ROWS - 1 - visual_r; // Chuyển đổi tọa độ Y thực tế
 
+  const gc = Math.floor(mx / CELL);
+  const gr = ROWS - 1 - Math.floor(my / CELL);
   if (gc < 0 || gr < 0 || gc >= COLS || gr >= ROWS) return;
-  setGoal(gc, gr, `(${gc},${gr})`);
+
+  const target = cellOriginToMeters(gc, gr);
+  setGoalMeters(target.x, target.y, state.agv.theta, {
+    label: `cell (${gc},${gr}) -> ${target.x.toFixed(2)}m, ${target.y.toFixed(2)}m`,
+    publish: true,
+    command: "NAVIGATE",
+  });
 });
 
-/* Tooltip Cập nhật động theo chế độ */
 canvas.addEventListener("mousemove", (e) => {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
   const mx = (e.clientX - rect.left) * scaleX;
   const my = (e.clientY - rect.top) * scaleY;
-  
-  const gc = Math.floor(mx / CELL);
-  const visual_r = Math.floor(my / CELL);
-  const gr = ROWS - 1 - visual_r;
 
+  const gc = Math.floor(mx / CELL);
+  const gr = ROWS - 1 - Math.floor(my / CELL);
   const tt = document.getElementById("goalTooltip");
   const ttText = document.getElementById("goalTooltipText");
 
   if (gc >= 0 && gr >= 0 && gc < COLS && gr < ROWS) {
+    const target = cellOriginToMeters(gc, gr);
     tt.style.borderColor = "var(--border)";
     ttText.style.color = "var(--cyan)";
-    ttText.textContent = `Click → đặt mục tiêu (${gc},${gr})`;
-
+    ttText.textContent = `Goal (${target.x.toFixed(2)}m, ${target.y.toFixed(2)}m)`;
     tt.style.left = e.clientX - rect.left + 14 + "px";
     tt.style.top = e.clientY - rect.top - 10 + "px";
     tt.classList.add("show");
@@ -331,44 +404,56 @@ canvas.addEventListener("mousemove", (e) => {
     tt.classList.remove("show");
   }
 });
-canvas.addEventListener("mouseleave", () =>
-  document.getElementById("goalTooltip").classList.remove("show"),
-);
 
-/* ═══════════════════════════════════════════
-   PATHFINDING & MOVEMENT
-═══════════════════════════════════════════ */
-function setGoal(gc, gr, label) {
-  if (state.moving) stopMovement();
-  
-  // Lưu lại vị trí hiện tại thành "vị trí cũ" trước khi đi điểm mới
-  state.prevPos = { col: state.agv.col, row: state.agv.row };
+canvas.addEventListener("mouseleave", () => {
+  document.getElementById("goalTooltip").classList.remove("show");
+});
 
-  state.goal.col = gc;
-  state.goal.row = gr;
-  
-  // Thay đổi hàm tìm đường sang Dijkstra
-  const path = dijkstra(state.agv.col, state.agv.row, gc, gr);
+function setGoalMeters(x, y, theta = 0, options = {}) {
+  const command = (options.command || "NAVIGATE").toUpperCase();
+  const targetCell = metersToCell(x, y);
 
+  if (state.moving && !options.keepMoving) stopMovement();
+  state.prevPos = { x: state.agv.x, y: state.agv.y, theta: state.agv.theta, col: state.agv.col, row: state.agv.row };
+
+  state.goal = {
+    x: round(clamp(Number(x) || 0, 0, ARENA_WIDTH_M), 3),
+    y: round(clamp(Number(y) || 0, 0, ARENA_HEIGHT_M), 3),
+    theta: normalizeTheta(theta),
+    col: targetCell.col,
+    row: targetCell.row,
+    timestamp: options.timestamp || Date.now(),
+    command,
+  };
+  state.lastCommandTimestamp = Math.max(state.lastCommandTimestamp, state.goal.timestamp);
+
+  const path = dijkstra(state.agv.col, state.agv.row, state.goal.col, state.goal.row);
   if (!path) {
-    addLog("err", "[DIJKSTRA]", "Không tìm thấy đường đi!");
-    return;
-  }
-  if (path.length === 0) {
-    addLog("info", "[AGV]", "AGV đã ở tại vị trí này rồi!");
+    addLog("err", "[DIJKSTRA]", "No valid path to goal.");
     return;
   }
 
   state.path = path;
   state.pathStep = 0;
-  
-  // Update UI & Log
-  document.getElementById("pathBadge").textContent = `Dijkstra: ${path.length - 1} steps`;
-  addLog("info", "[DIJKSTRA]", `Tìm thấy đường → ${label}. Nhấn START để chạy.`);
-  simulateMQTT(`/agv/cmd/goal → {x:${gc}, y:${gr}}`);
+  const label = options.label || `${state.goal.x.toFixed(2)}m, ${state.goal.y.toFixed(2)}m`;
+  if (path.length === 0) {
+    addLog("info", "[AGV]", `AGV is already at ${label}.`);
+  } else {
+    addLog("info", "[DIJKSTRA]", `Goal set -> ${label}. Press START to run.`);
+  }
+
+  if (options.publish !== false) {
+    publishControlCommand(command);
+    simulateMQTT(`/agv_system/robot_control/goal_pose -> ${JSON.stringify(state.goal)}`);
+  }
 }
 
 function startMovement() {
+  if (!state.path || state.path.length === 0) {
+    addLog("warn", "[CMD]", "No goal selected.");
+    return;
+  }
+
   if (state.moveInterval) clearInterval(state.moveInterval);
   setState("moving");
   state.moving = true;
@@ -378,30 +463,31 @@ function startMovement() {
       stopMovement();
       return;
     }
-    state.pathStep++;
 
+    state.pathStep++;
     if (state.pathStep >= state.path.length) {
       stopMovement();
-      setState("idle");
-      const { col, row } = state.goal;
-      addLog("ok", "[AGV]", `Đã đến đích (${col},${row})!`);
-      simulateMQTT(`/agv/status → ARRIVED`);
+      setState("reached");
+      addLog("ok", "[AGV]", `Reached goal (${state.goal.x.toFixed(2)}m, ${state.goal.y.toFixed(2)}m).`);
+      publishTelemetryAndStatus("REACHED");
+      simulateMQTT("/agv_system/robot_telemetry/status -> REACHED");
       return;
     }
 
     const next = state.path[state.pathStep];
+    const nextMeters = cellOriginToMeters(next.col, next.row);
     const dx = next.col - state.agv.col;
     const dy = next.row - state.agv.row;
-    
-    state.agv.angle = Math.atan2(dy, dx); // Tính góc Toán học chuẩn
-    state.visitedCells.add(`${state.agv.col},${state.agv.row}`);
-    state.agv.col = next.col;
-    state.agv.row = next.row;
+    const theta = dx !== 0 || dy !== 0 ? Math.atan2(dy, dx) : state.agv.theta;
 
-    state.velocity.v = (0.18 + Math.random() * 0.1).toFixed(2);
-    state.velocity.w = (0.05 + Math.random() * 0.12).toFixed(2);
+    state.visitedCells.add(`${state.agv.col},${state.agv.row}`);
+    setAgvPoseMeters(nextMeters.x, nextMeters.y, theta);
+
+    state.velocity.v = round(0.18 + Math.random() * 0.1, 2);
+    state.velocity.w = round(0.05 + Math.random() * 0.12, 2);
     updateTelemetry();
-  }, 400);
+    publishTelemetryAndStatus("MOVING");
+  }, 450);
 }
 
 function stopMovement() {
@@ -413,104 +499,107 @@ function stopMovement() {
   updateTelemetry();
 }
 
-/* ═══════════════════════════════════════════
-   STATE & TELEMETRY
-═══════════════════════════════════════════ */
-function setState(s) {
-  state.agvStatus = s;
-  const statuses = ["idle", "moving"];
-  const ids = [
-    { stateEl: "stateIdle", check: "checkIdle", css: "", dot: "dot-idle" },
-    { stateEl: "stateMoving", check: "checkMoving", css: "moving-state", dot: "dot-moving" },
+function setState(nextState) {
+  const normalized = String(nextState || "idle").toLowerCase();
+  state.agvStatus = normalized;
+
+  const configs = [
+    { name: "idle", stateEl: "stateIdle", check: "checkIdle", css: "", dot: "dot-idle" },
+    { name: "moving", stateEl: "stateMoving", check: "checkMoving", css: "moving-state", dot: "dot-moving" },
+    { name: "reached", stateEl: "stateReached", check: "checkReached", css: "reached-state", dot: "dot-green" },
+    { name: "error", stateEl: "stateError", check: "checkError", css: "error-state", dot: "dot-red" },
   ];
-  ids.forEach(({ stateEl, check, css, dot }, i) => {
-    const el = document.getElementById(stateEl);
-    if(!el) return;
-    const chk = document.getElementById(check);
+
+  configs.forEach((cfg) => {
+    const el = document.getElementById(cfg.stateEl);
+    if (!el) return;
+    const chk = document.getElementById(cfg.check);
     el.className = "state-item";
-    chk.textContent = "—";
-    if (statuses[i] === s) {
+    if (chk) chk.textContent = "-";
+    if (cfg.name === normalized) {
       el.classList.add("active-state");
-      if (css) el.classList.add(css);
-      chk.textContent = "✓";
+      if (cfg.css) el.classList.add(cfg.css);
+      if (chk) chk.textContent = "OK";
     }
     const dotEl = el.querySelector(".state-dot");
-    dotEl.className = ("state-dot " + dot).trim();
+    if (dotEl) dotEl.className = `state-dot ${cfg.dot}`.trim();
   });
 
-  const fills = { idle: "20%", moving: "70%" };
+  const fills = { idle: "20%", moving: "70%", reached: "100%", error: "100%", estop: "100%" };
   const colors = {
     idle: "linear-gradient(to right,#4a6080,#64748b)",
     moving: "linear-gradient(to right,#7dd3fc,#38bdf8)",
+    reached: "linear-gradient(to right,#4ade80,#16a34a)",
+    error: "linear-gradient(to right,#f87171,#dc2626)",
+    estop: "linear-gradient(to right,#f87171,#dc2626)",
   };
+
   const fill = document.getElementById("statusBarFill");
-  if(fill) {
-    fill.style.width = fills[s] || "50%";
-    fill.style.background = colors[s] || "red";
+  if (fill) {
+    fill.style.width = fills[normalized] || "50%";
+    fill.style.background = colors[normalized] || colors.idle;
   }
 
+  const labels = {
+    idle: ["SYSTEM IDLE", "dot-green", ""],
+    moving: ["AGV MOVING", "dot-moving", "moving"],
+    reached: ["GOAL REACHED", "dot-green", ""],
+    error: ["SYSTEM ERROR", "dot-red", "estop"],
+    estop: ["E-STOP ENGAGED", "dot-red", "estop"],
+  };
+
+  const [text, dotClass, textClass] = labels[normalized] || labels.idle;
   const stText = document.getElementById("statusText");
-  const stDot = document.getElementById("sysStatus").querySelector(".status-dot");
-  stDot.className = "status-dot";
-  if (s === "idle") {
-    stText.textContent = "SYSTEM IDLE";
-    stText.className = "status-text";
-    stDot.classList.add("dot-green");
+  const stDot = document.getElementById("sysStatus")?.querySelector(".status-dot");
+  if (stText) {
+    stText.textContent = text;
+    stText.className = `status-text ${textClass}`.trim();
   }
-  if (s === "moving") {
-    stText.textContent = "AGV MOVING";
-    stText.className = "status-text moving";
-    stDot.classList.add("dot-moving");
-  }
-  if (s === "estop") {
-    stText.textContent = "E-STOP ENGAGED";
-    stText.className = "status-text estop";
-    stDot.classList.add("dot-red");
+  if (stDot) {
+    stDot.className = `status-dot ${dotClass}`.trim();
   }
 }
 
 function updateTelemetry() {
-  document.getElementById("dispX").textContent = String(state.agv.col).padStart(2, "0");
-  document.getElementById("dispY").textContent = String(state.agv.row).padStart(2, "0");
-  
-  // Tính toán góc hiển thị La bàn (0 độ = Hướng Bắc/UP trên UI)
-  const math_deg = Math.round(((state.agv.angle * 180) / Math.PI + 360) % 360);
-  document.getElementById("dispTheta").textContent = math_deg;
-  
-  // CSS kim la bàn mặc định chỉa lên. Chuyển đổi góc toán học sang góc CSS
-  const css_deg = 90 - math_deg; 
-  document.getElementById("compassNeedle").style.transform = `rotate(${css_deg}deg)`;
+  document.getElementById("dispX").textContent = state.agv.x.toFixed(2);
+  document.getElementById("dispY").textContent = state.agv.y.toFixed(2);
+
+  const mathDeg = Math.round(((state.agv.theta * 180) / Math.PI + 360) % 360);
+  document.getElementById("dispTheta").textContent = mathDeg;
+  document.getElementById("compassNeedle").style.transform = `rotate(${90 - mathDeg}deg)`;
 
   document.getElementById("velV").textContent = Number(state.velocity.v).toFixed(2);
   document.getElementById("velW").textContent = Number(state.velocity.w).toFixed(2);
   drawArc("arcV", Number(state.velocity.v), 0.4, "#38bdf8");
   drawArc("arcW", Number(state.velocity.w), 0.3, "#a78bfa");
+
+  const batteryText = document.getElementById("batteryVal");
+  const batteryFill = document.getElementById("batteryFill");
+  if (batteryText) batteryText.textContent = `${Math.round(state.battery)}%`;
+  if (batteryFill) batteryFill.style.width = `${clamp(state.battery, 0, 100)}%`;
 }
 
-/* Arc gauge */
 function drawArc(id, val, max, color) {
   const c = document.getElementById(id);
   if (!c) return;
   const ct = c.getContext("2d");
-  const W = c.width,
-    H = c.height;
-  ct.clearRect(0, 0, W, H);
-  const cx = W / 2,
-    cy = H - 4;
+  const W = c.width;
+  const H = c.height;
+  const cx = W / 2;
+  const cy = H - 4;
   const r = Math.min(W, H * 2) / 2 - 4;
-  const startA = Math.PI,
-    endA = 0;
   const prog = Math.min(val / max, 1);
 
+  ct.clearRect(0, 0, W, H);
   ct.beginPath();
-  ct.arc(cx, cy, r, startA, endA);
-  ct.strokeStyle = "rgba(255,255,255,0.06)";
+  ct.arc(cx, cy, r, Math.PI, 0);
+  ct.strokeStyle = "rgba(255,255,255,0.08)";
   ct.lineWidth = 5;
   ct.lineCap = "round";
   ct.stroke();
 
   ct.beginPath();
-  ct.arc(cx, cy, r, startA, startA + prog * Math.PI);
+  ct.arc(cx, cy, r, Math.PI, Math.PI + prog * Math.PI);
   ct.strokeStyle = color;
   ct.lineWidth = 5;
   ct.lineCap = "round";
@@ -518,31 +607,12 @@ function drawArc(id, val, max, color) {
   ct.shadowBlur = 6;
   ct.stroke();
   ct.shadowBlur = 0;
-
-  for (let i = 0; i <= 4; i++) {
-    const a = Math.PI + (i / 4) * Math.PI;
-    const x1 = cx + (r - 5) * Math.cos(a),
-      y1 = cy + (r - 5) * Math.sin(a);
-    const x2 = cx + (r + 1) * Math.cos(a),
-      y2 = cy + (r + 1) * Math.sin(a);
-    ct.beginPath();
-    ct.moveTo(x1, y1);
-    ct.lineTo(x2, y2);
-    ct.strokeStyle = "rgba(255,255,255,0.1)";
-    ct.lineWidth = 1;
-    ct.stroke();
-  }
 }
-
-/* ═══════════════════════════════════════════
-   SYSTEM LOG
-═══════════════════════════════════════════ */
-let logCount = 0;
-const startTime = Date.now();
 
 function addLog(type, tag, msg) {
   const feed = document.getElementById("logFeed");
   if (!feed) return;
+
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
   const ts = String(elapsed).padStart(5, "0") + "s";
   const el = document.createElement("div");
@@ -555,122 +625,333 @@ function addLog(type, tag, msg) {
 }
 
 function clearLog() {
-  document.getElementById("logFeed").innerHTML = "";
+  const feed = document.getElementById("logFeed");
+  if (feed) feed.innerHTML = "";
 }
 
-/* ═══════════════════════════════════════════
-   MAP CONTROLS
-═══════════════════════════════════════════ */
 function mapAction(action) {
   if (action === "reset") {
     stopMovement();
     state.path = [];
     state.visitedCells.clear();
-    state.agv.col = 0;
-    state.agv.row = 0;
-    state.agv.angle = 0;
-    
-    // Reset ngay lập tức tọa độ render về gốc dưới trái
-    renderX = 0 * CELL + CELL / 2;
-    renderY = (ROWS - 1 - 0) * CELL + CELL / 2;
+    setAgvPoseMeters(0, 0, 0);
+    const resetCenter = agvToCanvasCenter();
+    renderX = resetCenter.x;
+    renderY = resetCenter.y;
     renderAngle = 0;
-
     setState("idle");
-    document.getElementById("pathBadge").textContent = "Dijkstra: — steps";
-    addLog("info", "[SYS]", "Đã reset AGV về tọa độ (0,0)");
+    addLog("info", "[SYS]", "AGV reset to origin (0.00m, 0.00m).");
     updateTelemetry();
+    publishStatus("IDLE");
   }
+
   if (action === "home") {
-    setGoal(state.home.col, state.home.row, "Home Base");
+    setGoalMeters(state.home.x, state.home.y, state.home.theta, {
+      label: "Home Base",
+      publish: true,
+      command: "NAVIGATE",
+    });
   }
-  // LOGIC NÚT "VỀ VỊ TRÍ CŨ"
+
   if (action === "return") {
     if (state.prevPos) {
-      addLog("info", "[CMD]", "Đang tính toán trở về vị trí trước đó...");
-      setGoal(state.prevPos.col, state.prevPos.row, "Vị trí cũ");
-      startMovement(); // Tự động kích hoạt chạy luôn cho tiện
+      setGoalMeters(state.prevPos.x, state.prevPos.y, state.prevPos.theta, {
+        label: "previous pose",
+        publish: true,
+        command: "RETURN",
+      });
+      startMovement();
     } else {
-      addLog("warn", "[CMD]", "Chưa có dữ liệu vị trí xuất phát để quay lại!");
+      addLog("warn", "[CMD]", "No previous pose available.");
     }
   }
+
   if (action === "clear") {
     stopMovement();
     state.path = [];
     state.visitedCells.clear();
     setState("idle");
-    document.getElementById("pathBadge").textContent = "Dijkstra: — steps";
-    addLog("info", "[MAP]", "Đã xóa đường đi và lịch sử");
+    addLog("info", "[MAP]", "Path and visited cells cleared.");
   }
+
   if (action === "start") {
-    if (state.path && state.path.length > 0 && !state.moving) {
-      addLog("info", "[CMD]", "Bắt đầu di chuyển...");
-      startMovement();
-    } else {
-      addLog("warn", "[CMD]", "Chưa chọn điểm đến hoặc xe đang chạy!");
-    }
+    startMovement();
   }
 }
 
-/* ═══════════════════════════════════════════
-   EMERGENCY STOP
-═══════════════════════════════════════════ */
 function toggleEmergency() {
   state.estop = !state.estop;
   const btn = document.getElementById("eStopBtn");
+
   if (state.estop) {
     stopMovement();
     state.path = [];
     setState("estop");
     btn.classList.add("active-estop");
-    btn.textContent = "▶ RESUME";
-    addLog("err", "[ESTOP]", "E-STOP activated! AGV halted.");
-    simulateMQTT(`/agv/cmd/estop → HALT`);
+    btn.textContent = "RESUME";
+    state.goal.command = "STOP";
+    state.goal.timestamp = Date.now();
+    addLog("err", "[ESTOP]", "Emergency stop activated.");
+    publishControlCommand("STOP");
+    publishStatus("ERROR");
+    simulateMQTT("/agv_system/robot_control/goal_pose -> STOP");
   } else {
     setState("idle");
     btn.classList.remove("active-estop");
-    btn.textContent = "⬛ E-STOP";
-    addLog("ok", "[ESTOP]", "E-STOP cleared. System resumed.");
-    simulateMQTT(`/agv/cmd/estop → CLEAR`);
+    btn.textContent = "E-STOP";
+    addLog("ok", "[ESTOP]", "Emergency stop cleared.");
+    publishStatus("IDLE");
   }
 }
 
-/* ═══════════════════════════════════════════
-   MQTT SIMULATION
-═══════════════════════════════════════════ */
 function simulateMQTT(msg) {
   state.mqttTx++;
   state.mqttRx += Math.random() > 0.3 ? 1 : 0;
   addLog("info", "[MQTT]", msg);
 }
 
+function buildGoalPose(command = state.goal.command) {
+  return {
+    x: round(state.goal.x),
+    y: round(state.goal.y),
+    theta: round(state.goal.theta),
+    unit: "m",
+    cell_size_m: CELL_SIZE_M,
+    timestamp: state.goal.timestamp || Date.now(),
+    command: String(command || "NAVIGATE").toUpperCase(),
+  };
+}
 
-/* ═══════════════════════════════════════════
-   AUTH: DASHBOARD LOGOUT MODAL
-   Tích hợp trực tiếp trong dashboard.js, không dùng alert/confirm
-═══════════════════════════════════════════ */
+function buildCurrentPose() {
+  return {
+    x: round(state.agv.x),
+    y: round(state.agv.y),
+    theta: round(state.agv.theta),
+    unit: "m",
+    cell_size_m: CELL_SIZE_M,
+  };
+}
+
+function buildRobotStatus(statusState = statusForFirebase()) {
+  return {
+    state: String(statusState || "IDLE").toUpperCase(),
+    battery: Math.round(clamp(state.battery, 0, 100)),
+  };
+}
+
+function statusForFirebase() {
+  if (state.estop) return "ERROR";
+  if (state.agvStatus === "reached") return "REACHED";
+  if (state.moving || state.agvStatus === "moving") return "MOVING";
+  if (state.agvStatus === "error") return "ERROR";
+  return "IDLE";
+}
+
+async function initFirebaseSync() {
+  try {
+    const [{ db }, firestore] = await Promise.all([
+      import("./firebase.js"),
+      import("https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js"),
+    ]);
+
+    firebaseSync.controlRef = firestore.doc(db, ...FIRESTORE_CONTROL_DOC_PATH);
+    firebaseSync.telemetryRef = firestore.doc(db, ...FIRESTORE_TELEMETRY_DOC_PATH);
+    firebaseSync.statusRef = firestore.doc(db, ...FIRESTORE_STATUS_DOC_PATH);
+    firebaseSync.setDoc = firestore.setDoc;
+    firebaseSync.serverTimestamp = firestore.serverTimestamp;
+    firebaseSync.ready = true;
+
+    firebaseSync.unsubscribes = [
+      firestore.onSnapshot(firebaseSync.controlRef, (snapshot) => {
+        if (snapshot.exists()) applyControlDoc(snapshot.data(), "firebase");
+      }, handleFirebaseError),
+      firestore.onSnapshot(firebaseSync.telemetryRef, (snapshot) => {
+        if (snapshot.exists()) applyTelemetryDoc(snapshot.data());
+      }, handleFirebaseError),
+      firestore.onSnapshot(firebaseSync.statusRef, (snapshot) => {
+        if (snapshot.exists()) applyStatusDoc(snapshot.data());
+      }, handleFirebaseError),
+    ];
+
+    addLog("ok", "[FIREBASE]", "Sync ready: robot_control / robot_telemetry / robot_status");
+    publishStatus("IDLE");
+  } catch (err) {
+    firebaseSync.lastError = err.message;
+    addLog("err", "[FIREBASE]", `Firestore unavailable: ${err.message}`);
+  }
+}
+
+function handleFirebaseError(err) {
+  firebaseSync.lastError = err.message;
+  addLog("err", "[FIREBASE]", `Realtime sync error: ${err.message}`);
+}
+
+async function writeFirebaseDoc(ref, payload, label) {
+  if (!firebaseSync.ready || !firebaseSync.setDoc || !ref) return;
+
+  try {
+    await firebaseSync.setDoc(ref, {
+      ...payload,
+      updated_at: firebaseSync.serverTimestamp(),
+    }, { merge: true });
+  } catch (err) {
+    firebaseSync.lastError = err.message;
+    addLog("err", "[FIREBASE]", `${label} write failed: ${err.message}`);
+  }
+}
+
+function publishControlCommand(command = state.goal.command) {
+  return writeFirebaseDoc(firebaseSync.controlRef, {
+    goal_pose: buildGoalPose(command),
+  }, "robot_control");
+}
+
+function publishTelemetry() {
+  return writeFirebaseDoc(firebaseSync.telemetryRef, {
+    current_pose: buildCurrentPose(),
+  }, "robot_telemetry");
+}
+
+function publishStatus(statusState = statusForFirebase()) {
+  return writeFirebaseDoc(firebaseSync.statusRef, {
+    status: buildRobotStatus(statusState),
+  }, "robot_status");
+}
+
+function publishTelemetryAndStatus(statusState = statusForFirebase()) {
+  publishTelemetry();
+  publishStatus(statusState);
+}
+
+function applyControlDoc(raw, source = "firebase") {
+  const goal = normalizeGoalPose(raw?.goal_pose || raw?.agv_system?.robot_control?.goal_pose);
+  if (!goal) return;
+
+  const timestamp = Number(goal.timestamp) || 0;
+  if (timestamp <= state.lastCommandTimestamp) return;
+
+  state.lastCommandTimestamp = timestamp;
+  handleRemoteCommand(goal.command, goal, source);
+}
+
+function applyTelemetryDoc(raw) {
+  const pose = normalizePose(raw?.current_pose || raw?.agv_system?.robot_telemetry?.current_pose);
+  if (!pose) return;
+
+  if (pose.unit === "cell" || pose.unit === "grid") {
+    setAgvPoseCell(pose.x, pose.y, pose.theta);
+  } else {
+    setAgvPoseMeters(pose.x, pose.y, pose.theta);
+  }
+  updateTelemetry();
+}
+
+function applyStatusDoc(raw) {
+  const status = normalizeStatus(raw?.status || raw?.agv_system?.robot_telemetry?.status);
+  if (!status) return;
+
+  if (Number.isFinite(status.battery)) state.battery = clamp(status.battery, 0, 100);
+  const mappedState = mapRemoteState(status.state);
+  if (mappedState) {
+    if (mappedState !== "moving") stopMovement();
+    setState(mappedState);
+  }
+  updateTelemetry();
+}
+
+function normalizePose(pose) {
+  if (!pose || typeof pose !== "object") return null;
+  const unit = String(pose.unit || pose.coord_unit || "").toLowerCase();
+  const x = Number(Number.isFinite(Number(pose.col)) ? pose.col : pose.x);
+  const y = Number(Number.isFinite(Number(pose.row)) ? pose.row : pose.y);
+  const theta = Number(pose.theta);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return {
+    x,
+    y,
+    theta: Number.isFinite(theta) ? theta : 0,
+    unit: Number.isFinite(Number(pose.col)) || Number.isFinite(Number(pose.row)) ? "cell" : unit,
+  };
+}
+
+function normalizeGoalPose(goal) {
+  if (!goal || typeof goal !== "object") return null;
+  const pose = normalizePose(goal);
+  if (!pose) return null;
+  return {
+    ...pose,
+    timestamp: Number.isFinite(Number(goal.timestamp)) ? Number(goal.timestamp) : 0,
+    command: String(goal.command || "NAVIGATE").toUpperCase(),
+  };
+}
+
+function normalizeStatus(status) {
+  if (!status || typeof status !== "object") return null;
+  return {
+    state: String(status.state || "IDLE").toUpperCase(),
+    battery: Number(status.battery),
+  };
+}
+
+function mapRemoteState(value) {
+  const v = String(value || "").toUpperCase();
+  if (v === "IDLE") return "idle";
+  if (v === "MOVING") return "moving";
+  if (v === "REACHED") return "reached";
+  if (v === "ERROR") return "error";
+  return null;
+}
+
+function handleRemoteCommand(command, goal, source) {
+  if (command === "STOP") {
+    if (!state.estop) state.estop = true;
+    stopMovement();
+    setState("estop");
+    addLog("err", "[REMOTE]", `STOP command received from ${source}.`);
+    return;
+  }
+
+  if (command === "RETURN") {
+    setGoalMeters(state.home.x, state.home.y, state.home.theta, {
+      label: "remote RETURN home",
+      publish: false,
+      timestamp: goal.timestamp,
+      command,
+    });
+    return;
+  }
+
+  if (command === "NAVIGATE") {
+    setGoalMeters(goal.x, goal.y, goal.theta, {
+      label: `remote goal ${round(goal.x, 2)}m, ${round(goal.y, 2)}m`,
+      publish: false,
+      timestamp: goal.timestamp,
+      command,
+    });
+  }
+}
+
 function openLogoutModal() {
   const modal = document.getElementById("logoutModal");
   const error = document.getElementById("logoutError");
   const confirmBtn = document.getElementById("logoutConfirmBtn");
-
   if (!modal) return;
+
   if (error) error.textContent = "";
   if (confirmBtn) {
     confirmBtn.disabled = false;
-    confirmBtn.textContent = "ĐĂNG XUẤT";
+    confirmBtn.textContent = "DANG XUAT";
   }
 
   modal.classList.add("show");
   modal.setAttribute("aria-hidden", "false");
   document.body.classList.add("modal-open");
-
   setTimeout(() => confirmBtn?.focus(), 80);
 }
 
 function closeLogoutModal() {
   const modal = document.getElementById("logoutModal");
   if (!modal) return;
-
   modal.classList.remove("show");
   modal.setAttribute("aria-hidden", "true");
   document.body.classList.remove("modal-open");
@@ -682,20 +963,19 @@ async function confirmDashboardLogout() {
   const cancelBtn = document.getElementById("logoutCancelBtn");
   const closeBtn = document.getElementById("logoutCancelX");
   const error = document.getElementById("logoutError");
-
-  const oldNavText = logoutBtn ? logoutBtn.textContent : "ĐĂNG XUẤT";
+  const oldNavText = logoutBtn ? logoutBtn.textContent : "DANG XUAT";
 
   if (error) error.textContent = "";
   if (confirmBtn) {
     confirmBtn.disabled = true;
-    confirmBtn.textContent = "ĐANG XỬ LÝ...";
+    confirmBtn.textContent = "DANG XU LY...";
   }
   if (cancelBtn) cancelBtn.disabled = true;
   if (closeBtn) closeBtn.disabled = true;
   if (logoutBtn) {
     logoutBtn.disabled = true;
     logoutBtn.classList.add("logging-out");
-    logoutBtn.textContent = "ĐANG ĐĂNG XUẤT...";
+    logoutBtn.textContent = "DANG DANG XUAT...";
   }
 
   try {
@@ -708,14 +988,10 @@ async function confirmDashboardLogout() {
     window.location.href = "auth.html";
   } catch (err) {
     console.error("Logout error:", err);
-
-    if (error) {
-      error.textContent = "Không thể đăng xuất lúc này. Vui lòng thử lại.";
-    }
-
+    if (error) error.textContent = "Khong the dang xuat luc nay. Vui long thu lai.";
     if (confirmBtn) {
       confirmBtn.disabled = false;
-      confirmBtn.textContent = "THỬ LẠI";
+      confirmBtn.textContent = "THU LAI";
     }
     if (cancelBtn) cancelBtn.disabled = false;
     if (closeBtn) closeBtn.disabled = false;
@@ -733,68 +1009,66 @@ function initDashboardLogout() {
   const cancelBtn = document.getElementById("logoutCancelBtn");
   const closeBtn = document.getElementById("logoutCancelX");
   const confirmBtn = document.getElementById("logoutConfirmBtn");
-
   if (!logoutBtn || !modal) return;
 
   logoutBtn.addEventListener("click", openLogoutModal);
   cancelBtn?.addEventListener("click", closeLogoutModal);
   closeBtn?.addEventListener("click", closeLogoutModal);
   confirmBtn?.addEventListener("click", confirmDashboardLogout);
-
   modal.addEventListener("click", (event) => {
-    if (event.target.matches("[data-logout-close]")) {
-      closeLogoutModal();
-    }
+    if (event.target.matches("[data-logout-close]")) closeLogoutModal();
   });
-
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && modal.classList.contains("show")) {
-      closeLogoutModal();
-    }
+    if (event.key === "Escape" && modal.classList.contains("show")) closeLogoutModal();
   });
 }
 
-
-/* ═══════════════════════════════════════════
-   NAV: TIME & UPTIME
-═══════════════════════════════════════════ */
 function updateNav() {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
-  document.getElementById("navTime").textContent =
-    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  document.getElementById("navTime").textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   state.uptime++;
-  const h = Math.floor(state.uptime / 3600),
-    m = Math.floor((state.uptime % 3600) / 60),
-    s = state.uptime % 60;
-  document.getElementById("uptimeVal").textContent =
-    `${pad(h)}:${pad(m)}:${pad(s)}`;
+  const h = Math.floor(state.uptime / 3600);
+  const m = Math.floor((state.uptime % 3600) / 60);
+  const s = state.uptime % 60;
+  document.getElementById("uptimeVal").textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
 
-  const lat = 6 + Math.floor(Math.random() * 8);
-  document.getElementById("latencyVal").textContent = lat + "ms";
+  document.getElementById("latencyVal").textContent = 6 + Math.floor(Math.random() * 8) + "ms";
 }
 
-/* ═══════════════════════════════════════════
-   INIT
-═══════════════════════════════════════════ */
 function init() {
+  const mapInfo = document.querySelector(".map-info");
+  if (mapInfo) {
+    mapInfo.innerHTML = `
+      <span class="map-badge">10 x 7 GRID</span>
+      <span class="map-badge">3m x 2.1m ARENA</span>
+      <span class="map-badge">30cm CELL</span>
+    `;
+  }
+
   drawArc("arcV", 0, 0.4, "#38bdf8");
   drawArc("arcW", 0, 0.3, "#a78bfa");
   updateTelemetry();
   setState("idle");
-
-  renderX = state.agv.col * CELL + CELL / 2;
-  renderY = (ROWS - 1 - state.agv.row) * CELL + CELL / 2;
-
+  const startCenter = agvToCanvasCenter();
+  renderX = startCenter.x;
+  renderY = startCenter.y;
   drawMap();
   setInterval(updateNav, 1000);
   initDashboardLogout();
+  initFirebaseSync();
 
-  addLog("ok", "[SYS]", "AGV Dashboard initialized");
-  addLog("ok", "[ROS]", "ROS2 Humble node connected");
-  addLog("info", "[AGV]", "Vị trí ban đầu: (0,0) — Góc dưới trái");
-  addLog("info", "[SYS]", "Sẵn sàng nhận lệnh... Click lên Map rồi nhấn START.");
+  addLog("ok", "[SYS]", "AGV Dashboard initialized.");
+  addLog("info", "[MAP]", "Grid 10x7, cell 0.30m, arena 3.00m x 2.10m.");
+  addLog("info", "[SYS]", "Click a cell to set goal, then press START.");
 }
+
+window.mapAction = mapAction;
+window.toggleEmergency = toggleEmergency;
+window.clearLog = clearLog;
+window.publishControlCommand = publishControlCommand;
+window.publishTelemetry = publishTelemetry;
+window.publishStatus = publishStatus;
 
 init();
